@@ -1,0 +1,147 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --navy: #0A1628;
+  --navy2: #0D1F3C;
+  --electric: #1E88E5;
+  --cyan: #29B6F6;
+  --green: #22C55E;
+  --green2: #16A34A;
+  --soft: #F0F7FF;
+  --light: #E2EEF9;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: white;
+  color: var(--navy);
+  overflow-x: hidden;
+  font-family: var(--font-dm-sans), sans-serif;
+}
+
+@layer components {
+  /* Brand X — green and italic */
+  .x-green {
+    @apply text-flowgreen italic;
+  }
+
+  /* Animated water orbs */
+  .water-orb {
+    @apply absolute rounded-full;
+    filter: blur(80px);
+    animation: float 8s ease-in-out infinite;
+  }
+
+  /* Hero background gradients */
+  .hero-bg {
+    background:
+      radial-gradient(ellipse at 70% 50%, rgba(30,136,229,0.25) 0%, transparent 60%),
+      radial-gradient(ellipse at 20% 80%, rgba(34,197,94,0.12) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 20%, rgba(41,182,246,0.1) 0%, transparent 50%);
+  }
+
+  /* Hero grid overlay */
+  .hero-grid {
+    background-image:
+      linear-gradient(rgba(255,255,255,.3) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.3) 1px, transparent 1px);
+    background-size: 60px 60px;
+    opacity: 0.04;
+  }
+
+  /* Section pulse dot */
+  .pulse-dot {
+    @apply w-2 h-2 bg-flowgreen rounded-full;
+    animation: pulse 2s infinite;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-8 py-4 rounded-2xl font-bold text-white text-[15px] transition-all;
+    background: linear-gradient(135deg, var(--electric), #1565C0);
+    box-shadow: 0 8px 32px rgba(30,136,229,0.35);
+  }
+  .btn-primary:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px rgba(30,136,229,0.5);
+  }
+
+  .btn-subscribe {
+    @apply inline-flex items-center gap-2 px-8 py-4 rounded-2xl font-bold text-white text-[15px] transition-all;
+    background: linear-gradient(135deg, var(--green), var(--green2));
+    box-shadow: 0 8px 32px rgba(34,197,94,0.3);
+  }
+  .btn-subscribe:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px rgba(34,197,94,0.45);
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 px-8 py-4 rounded-2xl font-semibold text-white text-[15px] transition-all border;
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.2);
+    backdrop-filter: blur(8px);
+  }
+  .btn-secondary:hover {
+    background: rgba(255,255,255,0.14);
+    transform: translateY(-3px);
+  }
+
+  /* Section tag */
+  .section-tag {
+    @apply inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider mb-4;
+    background: rgba(30,136,229,0.08);
+    border: 1px solid rgba(30,136,229,0.2);
+    color: var(--electric);
+    letter-spacing: 1px;
+  }
+
+  /* Form fields (dark) */
+  .field-dark {
+    @apply w-full px-4 py-3 rounded-xl text-white text-sm outline-none transition-all border;
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.12);
+  }
+  .field-dark:focus {
+    border-color: var(--cyan);
+    background: rgba(255,255,255,0.09);
+  }
+  .field-dark::placeholder {
+    color: rgba(255,255,255,0.3);
+  }
+
+  /* Form fields (light) */
+  .field-light {
+    @apply w-full px-4 py-3 rounded-xl text-sm outline-none transition-all border-2 border-light bg-white text-navy;
+  }
+  .field-light:focus {
+    border-color: var(--electric);
+  }
+
+  .field-label {
+    @apply block text-xs font-semibold uppercase tracking-wide mb-2;
+    color: rgba(255,255,255,0.6);
+    letter-spacing: 0.5px;
+  }
+  .field-label-light {
+    @apply block text-sm font-semibold mb-1.5 text-navy;
+  }
+}
+
+/* Hide scrollbar for tabs on mobile */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
