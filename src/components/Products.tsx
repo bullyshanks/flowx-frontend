@@ -28,6 +28,8 @@ export default function Products() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('COD');
   const [submitting, setSubmitting] = useState(false);
 
+  const addItem = useCartStore((s) => s.addItem);
+
   // ── Load products + zones ──
   useEffect(() => {
     Promise.all([productsApi.getAll(), productsApi.getZones()])
@@ -135,24 +137,31 @@ export default function Products() {
 
           <div className="flex flex-col gap-4">
             {products.map((p) => (
-              <button
+              <div
                 key={p.id}
-                onClick={() => selectProduct(p)}
                 className={`text-left border-2 rounded-2xl p-5 flex items-center gap-4 transition relative overflow-hidden ${
                   selectedProduct?.id === p.id
                     ? 'border-electric bg-gradient-to-br from-electric/[0.03] to-flowgreen/[0.02]'
-                    : 'border-light bg-white hover:border-electric hover:translate-x-1.5 hover:shadow-md'
+                    : 'border-light bg-white hover:border-electric hover:shadow-md'
                 }`}
               >
-                <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 bg-soft flex items-center justify-center text-4xl">
+                <button
+                  onClick={() => selectProduct(p)}
+                  className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 bg-soft flex items-center justify-center text-4xl"
+                  aria-label={`Select ${p.name}`}
+                >
                   {p.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
                   ) : (
                     '💧'
                   )}
-                </div>
-                <div className="flex-1">
+                </button>
+                <button
+                  onClick={() => selectProduct(p)}
+                  className="flex-1 text-left"
+                  aria-label={`Select ${p.name} for quick order`}
+                >
                   <div className="font-syne font-bold text-[15px] text-navy mb-1">{p.name}</div>
                   <div className="text-slate-500 text-[13px] mb-2">{p.description}</div>
                   <div className="flex flex-wrap gap-1.5">
@@ -163,14 +172,25 @@ export default function Products() {
                       Free delivery
                     </span>
                   </div>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <div className="font-syne font-extrabold text-lg text-navy">
-                    {formatPrice(p.price)}
+                </button>
+                <div className="text-right flex-shrink-0 flex flex-col items-end gap-2">
+                  <div>
+                    <div className="font-syne font-extrabold text-lg text-navy">
+                      {formatPrice(p.price)}
+                    </div>
+                    <div className="text-[11px] text-slate-500">/ {p.unit}</div>
                   </div>
-                  <div className="text-[11px] text-slate-500">/ {p.unit}</div>
+                  <button
+                    onClick={() => {
+                      addItem(p);
+                      toast.success(`${p.name} added to cart`);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-br from-electric to-flowgreen text-white text-xs font-bold hover:-translate-y-0.5 transition whitespace-nowrap"
+                  >
+                    <Plus size={14} /> Add to Cart
+                  </button>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         </div>
