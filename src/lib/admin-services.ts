@@ -11,6 +11,13 @@ interface AdminStats {
   orders: { today: number; month: number; pending: number };
   subscriptions: { active: number };
   revenue: { total: number; month: number };
+  finance: {
+    codCollected: number;
+    onlineReceived: number;
+    outstandingCodLiability: number;
+    commissionRevenue: number;
+    frozenVendors: number;
+  };
 }
 
 interface VendorListItem extends User {
@@ -75,4 +82,82 @@ export const adminApi = {
   },
 };
 
-export type { AdminStats, VendorListItem };
+// ═══ Finance (admin) ═══
+
+import type { VendorWallet, WalletTransaction, Settlement } from './vendor-portal-services';
+
+interface AdminSettlement extends Settlement {
+  vendorId: string;
+  vendor?: { id: string; name: string; phone: string };
+}
+
+interface UnsettledBalance {
+  vendor: { id: string; name: string; phone: string; codLiability: string; zone?: { name: string } };
+  period: { start: string; end: string };
+  totalProductValue: number;
+  totalRiderEarning: number;
+  totalCommission: number;
+  netPayable: number;
+}
+
+interface CommissionSettings {
+  id: string;
+  defaultCommissionPct: string;
+  updatedAt: string;
+}
+
+interface AdminVendorWallet {
+  vendor: {
+    id: string; name: string; phone: string; vendorStatus: string;
+    codLimit: string | null; codLiability: string; isFrozen: boolean;
+    zone?: { name: string };
+  };
+  wallet: VendorWallet;
+  transactions: WalletTransaction[];
+  total: number;
+}
+
+export const financeApi = {
+  getCommissionSettings: async (): Promise<CommissionSettings> => {
+    const { data } = await api.get('/admin/finance/commission-settings');
+    return data.settings;
+  },
+  updateCommissionSettings: async (defaultCommissionPct: number): Promise<CommissionSettings> => {
+    const { data } = await api.patch('/admin/finance/commission-settings', { defaultCommissionPct });
+    return data.settings;
+  },
+  updateProductRates: async (productId: string, rates: { commissionPct?: number | null; riderEarningPerUnit?: number }) => {
+    const { data } = await api.patch(`/admin/finance/products/${productId}/rates`, rates);
+    return data.product;
+  },
+  getVendorWallet: async (vendorId: string, limit = 20, offset = 0): Promise<AdminVendorWallet> => {
+    const { data } = await api.get(`/admin/finance/vendors/${vendorId}/wallet`, { params: { limit, offset } });
+    return data;
+  },
+  setCodLimit: async (vendorId: string, codLimit: number | null) => {
+    const { data } = await api.patch(`/admin/finance/vendors/${vendorId}/cod-limit`, { codLimit });
+    return data.vendor;
+  },
+  setFrozen: async (vendorId: string, isFrozen: boolean) => {
+    const { data } = await api.patch(`/admin/finance/vendors/${vendorId}/freeze`, { isFrozen });
+    return data.vendor;
+  },
+  pendingSettlements: async (): Promise<{ unsettled: UnsettledBalance[]; awaiting: AdminSettlement[] }> => {
+    const { data } = await api.get('/admin/finance/settlements/pending');
+    return { unsettled: data.unsettled, awaiting: data.awaiting };
+  },
+  generateSettlements: async (period?: { periodStart?: string; periodEnd?: string }) => {
+    const { data } = await api.post('/admin/finance/settlements/generate', period || {});
+    return { message: data.message as string, settlements: data.settlements as AdminSettlement[] };
+  },
+  approveSettlement: async (id: string): Promise<AdminSettlement> => {
+    const { data } = await api.post(`/admin/finance/settlements/${id}/approve`);
+    return data.settlement;
+  },
+  paySettlement: async (id: string, paymentMethod: string, paymentReference?: string): Promise<AdminSettlement> => {
+    const { data } = await api.post(`/admin/finance/settlements/${id}/pay`, { paymentMethod, paymentReference });
+    return data.settlement;
+  },
+};
+
+export type { AdminStats, VendorListItem, AdminSettlement, UnsettledBalance, CommissionSettings, AdminVendorWallet };

@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
   LayoutDashboard, Package, Users, Repeat, ShoppingCart,
-  Settings, LogOut, Menu, X, Loader2,
+  Wallet, Settings, LogOut, Menu, X, Loader2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/lib/auth-store';
@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { href: '/admin/vendors', label: 'Vendors', icon: Users },
   { href: '/admin/subscriptions', label: 'Subscriptions', icon: Repeat },
   { href: '/admin/products', label: 'Products', icon: ShoppingCart },
+  { href: '/admin/finance', label: 'Finance', icon: Wallet },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 

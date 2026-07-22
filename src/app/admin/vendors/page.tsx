@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Users, Loader2, RefreshCw, Check, X, MapPin, Phone, IdCard } from 'lucide-react';
+import Link from 'next/link';
+import { Users, Loader2, RefreshCw, Check, X, MapPin, Phone, IdCard, Wallet } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminApi, VendorListItem } from '@/lib/admin-services';
 import { productsApi } from '@/lib/services';
@@ -191,7 +192,11 @@ export default function AdminVendorsPage() {
                       </>
                     )}
                     {v.vendorStatus === 'APPROVED' && (
-                      <span className="text-xs text-white/45">Active</span>
+                      <Link href={`/admin/finance?tab=wallets&vendor=${v.id}`}>
+                        <Button size="sm" variant="secondary">
+                          <Wallet size={12} /> View Wallet
+                        </Button>
+                      </Link>
                     )}
                   </div>
                 </Td>

@@ -5,6 +5,7 @@ import { ShoppingCart, Loader2, RefreshCw, Edit3, Save, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { productsApi } from '@/lib/services';
+import { financeApi } from '@/lib/admin-services';
 import {
   PageHeader, Table, Th, Td, Button, EmptyState,
 } from '@/components/admin/ui';
@@ -16,6 +17,8 @@ export default function AdminProductsPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<string | null>(null);
   const [editPrice, setEditPrice] = useState('');
+  const [editCommission, setEditCommission] = useState('');   // '' = use global default
+  const [editRiderRate, setEditRiderRate] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -34,6 +37,8 @@ export default function AdminProductsPage() {
   const startEdit = (p: Product) => {
     setEditing(p.id);
     setEditPrice(String(p.price));
+    setEditCommission(p.commissionPct != null ? String(Number(p.commissionPct)) : '');
+    setEditRiderRate(String(Number(p.riderEarningPerUnit ?? 0)));
   };
 
   const saveEdit = async (productId: string) => {
@@ -42,9 +47,20 @@ export default function AdminProductsPage() {
       toast.error('Enter a valid price');
       return;
     }
+    const commissionPct = editCommission.trim() === '' ? null : parseFloat(editCommission);
+    if (commissionPct !== null && (isNaN(commissionPct) || commissionPct < 0 || commissionPct > 100)) {
+      toast.error('Commission % must be 0–100 (or empty for default)');
+      return;
+    }
+    const riderEarningPerUnit = parseFloat(editRiderRate);
+    if (isNaN(riderEarningPerUnit) || riderEarningPerUnit < 0) {
+      toast.error('Rider earning must be 0 or more');
+      return;
+    }
     try {
       await api.put(`/products/${productId}`, { price: newPrice });
-      toast.success('Price updated');
+      await financeApi.updateProductRates(productId, { commissionPct, riderEarningPerUnit });
+      toast.success('Product updated');
       setEditing(null);
       load();
     } catch {
@@ -94,6 +110,8 @@ export default function AdminProductsPage() {
               <Th>Min Qty</Th>
               <Th>Unit</Th>
               <Th>Price</Th>
+              <Th>Commission %</Th>
+              <Th>Rider Rs./unit</Th>
               <Th>Status</Th>
               <Th>Actions</Th>
             </tr>
@@ -116,12 +134,41 @@ export default function AdminProductsPage() {
                         type="number"
                         value={editPrice}
                         onChange={(e) => setEditPrice(e.target.value)}
-                        className="w-24 bg-white/8 border border-electric rounded-lg text-white text-sm px-2 py-1.5"
+                        className="w-24 bg-white/10 border border-electric rounded-lg text-white text-sm px-2 py-1.5"
                         autoFocus
                       />
                     </div>
                   ) : (
                     <span className="font-bold text-white">{formatPrice(p.price)}</span>
+                  )}
+                </Td>
+                <Td>
+                  {editing === p.id ? (
+                    <input
+                      type="number"
+                      value={editCommission}
+                      onChange={(e) => setEditCommission(e.target.value)}
+                      placeholder="default"
+                      className="w-20 bg-white/10 border border-electric rounded-lg text-white text-sm px-2 py-1.5"
+                    />
+                  ) : p.commissionPct != null ? (
+                    <span className="font-bold text-white">{Number(p.commissionPct)}%</span>
+                  ) : (
+                    <span className="text-white/40 text-xs">default</span>
+                  )}
+                </Td>
+                <Td>
+                  {editing === p.id ? (
+                    <input
+                      type="number"
+                      value={editRiderRate}
+                      onChange={(e) => setEditRiderRate(e.target.value)}
+                      className="w-20 bg-white/10 border border-electric rounded-lg text-white text-sm px-2 py-1.5"
+                    />
+                  ) : p.hasRiderDelivery === false ? (
+                    <span className="text-white/40 text-xs">no rider</span>
+                  ) : (
+                    <span className="font-bold text-white">{formatPrice(p.riderEarningPerUnit ?? 0)}</span>
                   )}
                 </Td>
                 <Td>
@@ -148,7 +195,7 @@ export default function AdminProductsPage() {
                     </div>
                   ) : (
                     <Button size="sm" variant="secondary" onClick={() => startEdit(p)}>
-                      <Edit3 size={12} /> Edit Price
+                      <Edit3 size={12} /> Edit
                     </Button>
                   )}
                 </Td>

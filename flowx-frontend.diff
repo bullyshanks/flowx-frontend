@@ -1,0 +1,1269 @@
+diff --git a/src/app/admin/finance/page.tsx b/src/app/admin/finance/page.tsx
+new file mode 100644
+index 0000000..c39e3f0
+--- /dev/null
++++ b/src/app/admin/finance/page.tsx
+@@ -0,0 +1,615 @@
++'use client';
++
++import { useCallback, useEffect, useState } from 'react';
++import {
++  Banknote, CreditCard, AlertTriangle, Percent, Snowflake, Loader2,
++  RefreshCw, FileText, Wallet, Search, ArrowLeft, Check, Save,
++  ChevronLeft, ChevronRight, Receipt,
++} from 'lucide-react';
++import toast from 'react-hot-toast';
++import {
++  adminApi, financeApi, AdminStats, VendorListItem,
++  AdminSettlement, UnsettledBalance,
++} from '@/lib/admin-services';
++import type { WalletTransaction, VendorWallet, Settlement } from '@/lib/vendor-portal-services';
++import {
++  StatCard, PageHeader, StatusBadge, Table, Th, Td, Button, EmptyState,
++} from '@/components/admin/ui';
++import { formatPrice, formatDate } from '@/lib/utils';
++
++type Tab = 'overview' | 'settlements' | 'wallets' | 'settings';
++
++const TABS: { id: Tab; label: string }[] = [
++  { id: 'overview', label: 'Overview' },
++  { id: 'settlements', label: 'Settlements' },
++  { id: 'wallets', label: 'Vendor Wallets' },
++  { id: 'settings', label: 'Settings' },
++];
++
++const ENTRY_TYPE_META: Record<
++  WalletTransaction['type'],
++  { label: string; badge: 'delivered' | 'confirmed' | 'cancelled' | 'suspended' | 'assigned' | 'delivering' }
++> = {
++  PRODUCT_VALUE: { label: 'Product Value', badge: 'delivered' },
++  RIDER_EARNING: { label: 'Rider Earning', badge: 'confirmed' },
++  COMMISSION_DEDUCTED: { label: 'Commission', badge: 'cancelled' },
++  REFUND: { label: 'Refund', badge: 'suspended' },
++  ADJUSTMENT: { label: 'Adjustment', badge: 'assigned' },
++  SETTLEMENT_PAYOUT: { label: 'Settlement', badge: 'delivering' },
++};
++
++const SETTLEMENT_BADGE: Record<Settlement['status'], 'pending' | 'approved' | 'delivered'> = {
++  PENDING: 'pending',
++  APPROVED: 'approved',
++  PAID: 'delivered',
++};
++
++export default function AdminFinancePage() {
++  const [tab, setTab] = useState<Tab>('overview');
++  const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
++
++  // Deep link support: /admin/finance?tab=wallets&vendor=<id>
++  useEffect(() => {
++    const params = new URLSearchParams(window.location.search);
++    const t = params.get('tab');
++    if (t && TABS.some((x) => x.id === t)) setTab(t as Tab);
++    const v = params.get('vendor');
++    if (v) {
++      setTab('wallets');
++      setSelectedVendor(v);
++    }
++  }, []);
++
++  return (
++    <>
++      <PageHeader title="Finance" subtitle="Commissions, settlements, and vendor wallets" />
++
++      <div className="flex flex-wrap gap-2 mb-8">
++        {TABS.map((t) => (
++          <button
++            key={t.id}
++            onClick={() => { setTab(t.id); setSelectedVendor(null); }}
++            className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${
++              tab === t.id
++                ? 'bg-electric text-white'
++                : 'bg-white/5 text-white/65 border border-white/10 hover:bg-white/10'
++            }`}
++          >
++            {t.label}
++          </button>
++        ))}
++      </div>
++
++      {tab === 'overview' && <OverviewTab />}
++      {tab === 'settlements' && <SettlementsTab />}
++      {tab === 'wallets' && (
++        selectedVendor
++          ? <VendorWalletDetail vendorId={selectedVendor} onBack={() => setSelectedVendor(null)} />
++          : <VendorWalletList onSelect={setSelectedVendor} />
++      )}
++      {tab === 'settings' && <SettingsTab />}
++    </>
++  );
++}
++
++// ═══ Overview ═══
++function OverviewTab() {
++  const [stats, setStats] = useState<AdminStats | null>(null);
++
++  useEffect(() => {
++    adminApi.dashboard().then(setStats).catch(() => toast.error('Failed to load stats'));
++  }, []);
++
++  if (!stats) {
++    return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-electric" size={32} /></div>;
++  }
++
++  const f = stats.finance;
++  return (
++    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
++      <StatCard label="COD Collected" value={formatPrice(f.codCollected)} sublabel="Cash collected by vendors (delivered orders)" icon={Banknote} color="amber" />
++      <StatCard label="Online Received" value={formatPrice(f.onlineReceived)} sublabel="Prepaid / online payments received" icon={CreditCard} color="blue" />
++      <StatCard label="Outstanding COD Liability" value={formatPrice(f.outstandingCodLiability)} sublabel="Commission vendors currently owe FlowX" icon={AlertTriangle} color="purple" />
++      <StatCard label="Commission Revenue" value={formatPrice(f.commissionRevenue)} sublabel="Total commission earned to date" icon={Percent} color="green" />
++      <StatCard label="Frozen Vendors" value={f.frozenVendors} sublabel="Vendors with financial activity paused" icon={Snowflake} color="cyan" />
++    </div>
++  );
++}
++
++// ═══ Settlements ═══
++function SettlementsTab() {
++  const [unsettled, setUnsettled] = useState<UnsettledBalance[]>([]);
++  const [awaiting, setAwaiting] = useState<AdminSettlement[]>([]);
++  const [loading, setLoading] = useState(true);
++  const [generating, setGenerating] = useState(false);
++  const [actioning, setActioning] = useState<string | null>(null);
++
++  const load = useCallback(async () => {
++    setLoading(true);
++    try {
++      const data = await financeApi.pendingSettlements();
++      setUnsettled(data.unsettled);
++      setAwaiting(data.awaiting);
++    } catch {
++      toast.error('Failed to load settlements');
++    } finally {
++      setLoading(false);
++    }
++  }, []);
++
++  useEffect(() => { load(); }, [load]);
++
++  const generate = async () => {
++    setGenerating(true);
++    try {
++      const { message } = await financeApi.generateSettlements();
++      toast.success(message);
++      load();
++    } catch {
++      toast.error('Failed to generate settlements');
++    } finally {
++      setGenerating(false);
++    }
++  };
++
++  const approve = async (id: string) => {
++    setActioning(id);
++    try {
++      await financeApi.approveSettlement(id);
++      toast.success('Settlement approved');
++      load();
++    } catch {
++      toast.error('Failed to approve');
++    } finally {
++      setActioning(null);
++    }
++  };
++
++  const pay = async (id: string) => {
++    const paymentMethod = prompt('Payment method (e.g. BANK_TRANSFER, JAZZCASH, CASH):');
++    if (!paymentMethod) return;
++    const paymentReference = prompt('Payment reference (optional):') || undefined;
++    setActioning(id);
++    try {
++      await financeApi.paySettlement(id, paymentMethod, paymentReference);
++      toast.success('Settlement marked paid — COD liability updated');
++      load();
++    } catch (err: unknown) {
++      const error = err as { response?: { data?: { message?: string } } };
++      toast.error(error?.response?.data?.message || 'Failed to mark paid');
++    } finally {
++      setActioning(null);
++    }
++  };
++
++  if (loading) {
++    return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-electric" size={32} /></div>;
++  }
++
++  return (
++    <>
++      {/* ── Unsettled balances (current week) ── */}
++      <div className="flex items-center justify-between mb-4">
++        <h2 className="font-syne font-bold text-white text-lg">Unsettled — Current Week</h2>
++        <div className="flex gap-2">
++          <Button variant="secondary" onClick={load}><RefreshCw size={14} /> Refresh</Button>
++          <Button variant="primary" onClick={generate} disabled={generating || unsettled.length === 0}>
++            {generating ? <Loader2 className="animate-spin" size={14} /> : <FileText size={14} />}
++            Generate Weekly Settlements
++          </Button>
++        </div>
++      </div>
++
++      {unsettled.length === 0 ? (
++        <EmptyState icon={FileText} title="Nothing to settle this week" description="Delivered orders create unsettled balances here." />
++      ) : (
++        <Table>
++          <thead>
++            <tr>
++              <Th>Vendor</Th>
++              <Th>Zone</Th>
++              <Th className="text-right">Product Value</Th>
++              <Th className="text-right">Rider Earnings</Th>
++              <Th className="text-right">Commission</Th>
++              <Th className="text-right">Net Payable</Th>
++            </tr>
++          </thead>
++          <tbody>
++            {unsettled.map((u) => (
++              <tr key={u.vendor.id} className="hover:bg-white/[0.02]">
++                <Td>
++                  <div className="font-semibold text-white">{u.vendor.name}</div>
++                  <div className="text-[11px] text-white/45 font-mono">{u.vendor.phone}</div>
++                </Td>
++                <Td className="text-white/65 text-xs">{u.vendor.zone?.name || '—'}</Td>
++                <Td className="text-right">{formatPrice(u.totalProductValue)}</Td>
++                <Td className="text-right">{formatPrice(u.totalRiderEarning)}</Td>
++                <Td className="text-right text-red-400">−{formatPrice(u.totalCommission)}</Td>
++                <Td className={`text-right font-bold ${u.netPayable >= 0 ? 'text-flowgreen' : 'text-red-400'}`}>
++                  {u.netPayable >= 0 ? '' : '−'}{formatPrice(Math.abs(u.netPayable))}
++                </Td>
++              </tr>
++            ))}
++          </tbody>
++        </Table>
++      )}
++
++      {/* ── Awaiting approval / payment ── */}
++      <h2 className="font-syne font-bold text-white text-lg mt-10 mb-4">Awaiting Approval / Payment</h2>
++      {awaiting.length === 0 ? (
++        <EmptyState icon={Receipt} title="No settlements awaiting action" />
++      ) : (
++        <Table>
++          <thead>
++            <tr>
++              <Th>Vendor</Th>
++              <Th>Period</Th>
++              <Th>Status</Th>
++              <Th className="text-right">Net Payable</Th>
++              <Th>Actions</Th>
++            </tr>
++          </thead>
++          <tbody>
++            {awaiting.map((s) => {
++              const net = Number(s.netPayable);
++              return (
++                <tr key={s.id} className="hover:bg-white/[0.02]">
++                  <Td>
++                    <div className="font-semibold text-white">{s.vendor?.name}</div>
++                    <div className="text-[11px] text-white/45 font-mono">{s.vendor?.phone}</div>
++                  </Td>
++                  <Td className="text-xs whitespace-nowrap">{formatDate(s.periodStart)} – {formatDate(s.periodEnd)}</Td>
++                  <Td><StatusBadge variant={SETTLEMENT_BADGE[s.status]}>{s.status}</StatusBadge></Td>
++                  <Td className={`text-right font-bold ${net >= 0 ? 'text-flowgreen' : 'text-red-400'}`}>
++                    {net >= 0 ? '' : '−'}{formatPrice(Math.abs(net))}
++                  </Td>
++                  <Td>
++                    <div className="flex gap-1.5">
++                      {s.status === 'PENDING' && (
++                        <Button size="sm" variant="success" disabled={actioning === s.id} onClick={() => approve(s.id)}>
++                          <Check size={12} /> Approve
++                        </Button>
++                      )}
++                      {s.status === 'APPROVED' && (
++                        <Button size="sm" variant="primary" disabled={actioning === s.id} onClick={() => pay(s.id)}>
++                          <Banknote size={12} /> Mark Paid
++                        </Button>
++                      )}
++                    </div>
++                  </Td>
++                </tr>
++              );
++            })}
++          </tbody>
++        </Table>
++      )}
++    </>
++  );
++}
++
++// ═══ Vendor Wallets — list ═══
++function VendorWalletList({ onSelect }: { onSelect: (id: string) => void }) {
++  const [vendors, setVendors] = useState<VendorListItem[]>([]);
++  const [loading, setLoading] = useState(true);
++  const [search, setSearch] = useState('');
++
++  useEffect(() => {
++    adminApi.listVendors({ status: 'APPROVED' })
++      .then(setVendors)
++      .catch(() => toast.error('Failed to load vendors'))
++      .finally(() => setLoading(false));
++  }, []);
++
++  if (loading) {
++    return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-electric" size={32} /></div>;
++  }
++
++  const filtered = vendors.filter((v) => {
++    const q = search.toLowerCase();
++    return v.name.toLowerCase().includes(q) || v.phone.includes(q) || v.zone?.name.toLowerCase().includes(q);
++  });
++
++  return (
++    <>
++      <div className="relative mb-6 max-w-md">
++        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
++        <input
++          value={search}
++          onChange={(e) => setSearch(e.target.value)}
++          placeholder="Search vendors by name, phone, or zone…"
++          className="w-full bg-navy border border-white/10 rounded-xl text-white text-sm pl-10 pr-4 py-3 placeholder:text-white/30 focus:border-electric outline-none"
++        />
++      </div>
++
++      {filtered.length === 0 ? (
++        <EmptyState icon={Wallet} title="No vendors found" />
++      ) : (
++        <Table>
++          <thead>
++            <tr>
++              <Th>Vendor</Th>
++              <Th>Zone</Th>
++              <Th>Status</Th>
++              <Th>Wallet</Th>
++            </tr>
++          </thead>
++          <tbody>
++            {filtered.map((v) => (
++              <tr key={v.id} className="hover:bg-white/[0.02]">
++                <Td>
++                  <div className="font-semibold text-white">{v.name}</div>
++                  <div className="text-[11px] text-white/45 font-mono">{v.phone}</div>
++                </Td>
++                <Td className="text-white/65 text-xs">{v.zone?.name || '—'}</Td>
++                <Td>
++                  {v.vendorStatus && (
++                    <StatusBadge variant={v.vendorStatus === 'APPROVED' ? 'approved' : 'pending'}>
++                      {v.vendorStatus}
++                    </StatusBadge>
++                  )}
++                </Td>
++                <Td>
++                  <Button size="sm" variant="secondary" onClick={() => onSelect(v.id)}>
++                    <Wallet size={12} /> View Wallet
++                  </Button>
++                </Td>
++              </tr>
++            ))}
++          </tbody>
++        </Table>
++      )}
++    </>
++  );
++}
++
++// ═══ Vendor Wallets — detail (ledger + COD limit + freeze) ═══
++const PAGE_SIZE = 20;
++
++function VendorWalletDetail({ vendorId, onBack }: { vendorId: string; onBack: () => void }) {
++  const [data, setData] = useState<{
++    vendor: { id: string; name: string; phone: string; vendorStatus: string; codLimit: string | null; codLiability: string; isFrozen: boolean; zone?: { name: string } };
++    wallet: VendorWallet;
++    transactions: WalletTransaction[];
++    total: number;
++  } | null>(null);
++  const [page, setPage] = useState(0);
++  const [limitInput, setLimitInput] = useState('');
++  const [savingLimit, setSavingLimit] = useState(false);
++  const [togglingFreeze, setTogglingFreeze] = useState(false);
++
++  const load = useCallback(async (p: number) => {
++    try {
++      const d = await financeApi.getVendorWallet(vendorId, PAGE_SIZE, p * PAGE_SIZE);
++      setData(d);
++      setLimitInput(d.vendor.codLimit != null ? String(Number(d.vendor.codLimit)) : '');
++    } catch {
++      toast.error('Failed to load vendor wallet');
++    }
++  }, [vendorId]);
++
++  useEffect(() => { load(page); }, [load, page]);
++
++  if (!data) {
++    return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-electric" size={32} /></div>;
++  }
++
++  const { vendor, wallet, transactions, total } = data;
++  const totalPages = Math.ceil(total / PAGE_SIZE);
++
++  const saveLimit = async () => {
++    const value = limitInput.trim() === '' ? null : Number(limitInput);
++    if (value !== null && (isNaN(value) || value < 0)) {
++      toast.error('Enter a valid limit (or leave empty for unlimited)');
++      return;
++    }
++    setSavingLimit(true);
++    try {
++      await financeApi.setCodLimit(vendor.id, value);
++      toast.success(value === null ? 'COD limit removed (unlimited)' : `COD limit set to ${formatPrice(value)}`);
++      load(page);
++    } catch {
++      toast.error('Failed to update COD limit');
++    } finally {
++      setSavingLimit(false);
++    }
++  };
++
++  const toggleFreeze = async () => {
++    setTogglingFreeze(true);
++    try {
++      await financeApi.setFrozen(vendor.id, !vendor.isFrozen);
++      toast.success(vendor.isFrozen ? 'Vendor unfrozen' : 'Vendor frozen — financial activity blocked');
++      load(page);
++    } catch {
++      toast.error('Failed to update freeze status');
++    } finally {
++      setTogglingFreeze(false);
++    }
++  };
++
++  return (
++    <>
++      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
++        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-cyan2 hover:underline">
++          <ArrowLeft size={15} /> All vendors
++        </button>
++        <div className="flex items-center gap-2">
++          {vendor.isFrozen && <StatusBadge variant="cancelled">FROZEN</StatusBadge>}
++          <Button variant={vendor.isFrozen ? 'success' : 'danger'} size="sm" disabled={togglingFreeze} onClick={toggleFreeze}>
++            <Snowflake size={12} /> {vendor.isFrozen ? 'Unfreeze' : 'Freeze'}
++          </Button>
++        </div>
++      </div>
++
++      <div className="bg-navy border border-white/[0.08] rounded-2xl p-5 mb-6 flex flex-wrap items-center justify-between gap-4">
++        <div className="flex items-center gap-3">
++          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-electric to-flowgreen flex items-center justify-center font-syne font-bold">
++            {vendor.name[0]}
++          </div>
++          <div>
++            <div className="font-syne font-bold text-white">{vendor.name}</div>
++            <div className="text-xs text-white/50 font-mono">{vendor.phone} · {vendor.zone?.name || 'No zone'}</div>
++          </div>
++        </div>
++
++        {/* COD limit editor */}
++        <div className="flex items-end gap-2">
++          <div>
++            <div className="text-[11px] text-white/45 uppercase tracking-wide mb-1">COD Limit (empty = unlimited)</div>
++            <input
++              type="number"
++              value={limitInput}
++              onChange={(e) => setLimitInput(e.target.value)}
++              placeholder="Unlimited"
++              className="w-36 bg-white/10 border border-white/15 rounded-lg text-white text-sm px-3 py-2 focus:border-electric outline-none"
++            />
++          </div>
++          <Button size="sm" variant="primary" disabled={savingLimit} onClick={saveLimit}>
++            <Save size={12} /> Save
++          </Button>
++        </div>
++      </div>
++
++      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
++        <StatCard label="Net Payable" value={formatPrice(wallet.netPayable)} icon={Wallet} color="green" />
++        <StatCard label="Rider Earnings" value={formatPrice(wallet.totalRiderEarning)} icon={Banknote} color="cyan" />
++        <StatCard label="Commission" value={formatPrice(wallet.totalCommission)} icon={Percent} color="blue" />
++        <StatCard
++          label="COD Liability"
++          value={formatPrice(wallet.codLiability)}
++          sublabel={wallet.codLimit != null ? `Limit: ${formatPrice(wallet.codLimit)}` : 'No limit set'}
++          icon={AlertTriangle}
++          color="amber"
++        />
++      </div>
++
++      <h2 className="font-syne font-bold text-white text-lg mb-4">Ledger</h2>
++      {transactions.length === 0 ? (
++        <EmptyState icon={Receipt} title="No ledger entries yet" />
++      ) : (
++        <>
++          <Table>
++            <thead>
++              <tr>
++                <Th>Date</Th>
++                <Th>Type</Th>
++                <Th>Order #</Th>
++                <Th>Description</Th>
++                <Th className="text-right">Amount</Th>
++              </tr>
++            </thead>
++            <tbody>
++              {transactions.map((tx) => {
++                const meta = ENTRY_TYPE_META[tx.type];
++                const amount = Number(tx.amount);
++                return (
++                  <tr key={tx.id} className="hover:bg-white/[0.02]">
++                    <Td className="whitespace-nowrap text-xs">{formatDate(tx.createdAt)}</Td>
++                    <Td><StatusBadge variant={meta.badge}>{meta.label}</StatusBadge></Td>
++                    <Td>
++                      {tx.order
++                        ? <span className="font-mono text-cyan2 text-xs">{tx.order.orderNumber}</span>
++                        : <span className="text-white/35">—</span>}
++                    </Td>
++                    <Td className="text-white/55 text-xs max-w-xs truncate">{tx.description || '—'}</Td>
++                    <Td className={`text-right font-bold whitespace-nowrap ${amount >= 0 ? 'text-flowgreen' : 'text-red-400'}`}>
++                      {amount >= 0 ? '+' : '−'}{formatPrice(Math.abs(amount))}
++                    </Td>
++                  </tr>
++                );
++              })}
++            </tbody>
++          </Table>
++
++          {totalPages > 1 && (
++            <div className="flex items-center justify-between mt-4">
++              <div className="text-xs text-white/45">Page {page + 1} of {totalPages} · {total} entries</div>
++              <div className="flex gap-2">
++                <Button variant="secondary" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
++                  <ChevronLeft size={14} /> Prev
++                </Button>
++                <Button variant="secondary" size="sm" disabled={page + 1 >= totalPages} onClick={() => setPage(page + 1)}>
++                  Next <ChevronRight size={14} />
++                </Button>
++              </div>
++            </div>
++          )}
++        </>
++      )}
++    </>
++  );
++}
++
++// ═══ Settings ═══
++function SettingsTab() {
++  const [pct, setPct] = useState('');
++  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
++  const [loading, setLoading] = useState(true);
++  const [saving, setSaving] = useState(false);
++
++  useEffect(() => {
++    financeApi.getCommissionSettings()
++      .then((s) => { setPct(String(Number(s.defaultCommissionPct))); setUpdatedAt(s.updatedAt); })
++      .catch(() => toast.error('Failed to load settings'))
++      .finally(() => setLoading(false));
++  }, []);
++
++  const save = async () => {
++    const value = Number(pct);
++    if (isNaN(value) || value < 0 || value > 100) {
++      toast.error('Commission must be between 0 and 100');
++      return;
++    }
++    setSaving(true);
++    try {
++      const s = await financeApi.updateCommissionSettings(value);
++      setUpdatedAt(s.updatedAt);
++      toast.success(`Default commission set to ${value}%`);
++    } catch {
++      toast.error('Failed to update');
++    } finally {
++      setSaving(false);
++    }
++  };
++
++  if (loading) {
++    return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-electric" size={32} /></div>;
++  }
++
++  return (
++    <div className="max-w-xl">
++      <div className="bg-navy border border-white/[0.08] rounded-2xl p-6">
++        <h2 className="font-syne font-bold text-white text-lg mb-1">Default Commission</h2>
++        <p className="text-white/50 text-sm mb-5">
++          Applied to every product without its own override. Per-product overrides are edited on the{' '}
++          <a href="/admin/products" className="text-cyan2 hover:underline">Products page</a>.
++        </p>
++
++        <div className="flex items-end gap-3">
++          <div>
++            <div className="text-[11px] text-white/45 uppercase tracking-wide mb-1.5">Commission %</div>
++            <div className="flex items-center gap-2">
++              <input
++                type="number"
++                min={0}
++                max={100}
++                step={0.5}
++                value={pct}
++                onChange={(e) => setPct(e.target.value)}
++                className="w-28 bg-white/10 border border-white/15 rounded-lg text-white text-lg font-bold px-3 py-2.5 focus:border-electric outline-none"
++              />
++              <span className="text-white/50 text-lg font-bold">%</span>
++            </div>
++          </div>
++          <Button variant="primary" disabled={saving} onClick={save}>
++            {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />} Save
++          </Button>
++        </div>
++
++        {updatedAt && (
++          <div className="text-xs text-white/35 mt-4">Last updated {formatDate(updatedAt)}</div>
++        )}
++      </div>
++    </div>
++  );
++}
+diff --git a/src/app/admin/layout.tsx b/src/app/admin/layout.tsx
+index 0249bed..8c78196 100644
+--- a/src/app/admin/layout.tsx
++++ b/src/app/admin/layout.tsx
+@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
+ import Link from 'next/link';
+ import {
+   LayoutDashboard, Package, Users, Repeat, ShoppingCart,
+-  Settings, LogOut, Menu, X, Loader2,
++  Wallet, Settings, LogOut, Menu, X, Loader2,
+ } from 'lucide-react';
+ import toast from 'react-hot-toast';
+ import { useAuthStore } from '@/lib/auth-store';
+@@ -16,6 +16,7 @@ const NAV_ITEMS = [
+   { href: '/admin/vendors', label: 'Vendors', icon: Users },
+   { href: '/admin/subscriptions', label: 'Subscriptions', icon: Repeat },
+   { href: '/admin/products', label: 'Products', icon: ShoppingCart },
++  { href: '/admin/finance', label: 'Finance', icon: Wallet },
+   { href: '/admin/settings', label: 'Settings', icon: Settings },
+ ];
+ 
+diff --git a/src/app/admin/products/page.tsx b/src/app/admin/products/page.tsx
+index 0cc3e68..b6204fb 100644
+--- a/src/app/admin/products/page.tsx
++++ b/src/app/admin/products/page.tsx
+@@ -5,6 +5,7 @@ import { ShoppingCart, Loader2, RefreshCw, Edit3, Save, X } from 'lucide-react';
+ import toast from 'react-hot-toast';
+ import api from '@/lib/api';
+ import { productsApi } from '@/lib/services';
++import { financeApi } from '@/lib/admin-services';
+ import {
+   PageHeader, Table, Th, Td, Button, EmptyState,
+ } from '@/components/admin/ui';
+@@ -16,6 +17,8 @@ export default function AdminProductsPage() {
+   const [loading, setLoading] = useState(true);
+   const [editing, setEditing] = useState<string | null>(null);
+   const [editPrice, setEditPrice] = useState('');
++  const [editCommission, setEditCommission] = useState('');   // '' = use global default
++  const [editRiderRate, setEditRiderRate] = useState('');
+ 
+   const load = async () => {
+     setLoading(true);
+@@ -34,6 +37,8 @@ export default function AdminProductsPage() {
+   const startEdit = (p: Product) => {
+     setEditing(p.id);
+     setEditPrice(String(p.price));
++    setEditCommission(p.commissionPct != null ? String(Number(p.commissionPct)) : '');
++    setEditRiderRate(String(Number(p.riderEarningPerUnit ?? 0)));
+   };
+ 
+   const saveEdit = async (productId: string) => {
+@@ -42,9 +47,20 @@ export default function AdminProductsPage() {
+       toast.error('Enter a valid price');
+       return;
+     }
++    const commissionPct = editCommission.trim() === '' ? null : parseFloat(editCommission);
++    if (commissionPct !== null && (isNaN(commissionPct) || commissionPct < 0 || commissionPct > 100)) {
++      toast.error('Commission % must be 0–100 (or empty for default)');
++      return;
++    }
++    const riderEarningPerUnit = parseFloat(editRiderRate);
++    if (isNaN(riderEarningPerUnit) || riderEarningPerUnit < 0) {
++      toast.error('Rider earning must be 0 or more');
++      return;
++    }
+     try {
+       await api.put(`/products/${productId}`, { price: newPrice });
+-      toast.success('Price updated');
++      await financeApi.updateProductRates(productId, { commissionPct, riderEarningPerUnit });
++      toast.success('Product updated');
+       setEditing(null);
+       load();
+     } catch {
+@@ -94,6 +110,8 @@ export default function AdminProductsPage() {
+               <Th>Min Qty</Th>
+               <Th>Unit</Th>
+               <Th>Price</Th>
++              <Th>Commission %</Th>
++              <Th>Rider Rs./unit</Th>
+               <Th>Status</Th>
+               <Th>Actions</Th>
+             </tr>
+@@ -116,7 +134,7 @@ export default function AdminProductsPage() {
+                         type="number"
+                         value={editPrice}
+                         onChange={(e) => setEditPrice(e.target.value)}
+-                        className="w-24 bg-white/8 border border-electric rounded-lg text-white text-sm px-2 py-1.5"
++                        className="w-24 bg-white/10 border border-electric rounded-lg text-white text-sm px-2 py-1.5"
+                         autoFocus
+                       />
+                     </div>
+@@ -124,6 +142,35 @@ export default function AdminProductsPage() {
+                     <span className="font-bold text-white">{formatPrice(p.price)}</span>
+                   )}
+                 </Td>
++                <Td>
++                  {editing === p.id ? (
++                    <input
++                      type="number"
++                      value={editCommission}
++                      onChange={(e) => setEditCommission(e.target.value)}
++                      placeholder="default"
++                      className="w-20 bg-white/10 border border-electric rounded-lg text-white text-sm px-2 py-1.5"
++                    />
++                  ) : p.commissionPct != null ? (
++                    <span className="font-bold text-white">{Number(p.commissionPct)}%</span>
++                  ) : (
++                    <span className="text-white/40 text-xs">default</span>
++                  )}
++                </Td>
++                <Td>
++                  {editing === p.id ? (
++                    <input
++                      type="number"
++                      value={editRiderRate}
++                      onChange={(e) => setEditRiderRate(e.target.value)}
++                      className="w-20 bg-white/10 border border-electric rounded-lg text-white text-sm px-2 py-1.5"
++                    />
++                  ) : p.hasRiderDelivery === false ? (
++                    <span className="text-white/40 text-xs">no rider</span>
++                  ) : (
++                    <span className="font-bold text-white">{formatPrice(p.riderEarningPerUnit ?? 0)}</span>
++                  )}
++                </Td>
+                 <Td>
+                   <button
+                     onClick={() => toggleActive(p)}
+@@ -148,7 +195,7 @@ export default function AdminProductsPage() {
+                     </div>
+                   ) : (
+                     <Button size="sm" variant="secondary" onClick={() => startEdit(p)}>
+-                      <Edit3 size={12} /> Edit Price
++                      <Edit3 size={12} /> Edit
+                     </Button>
+                   )}
+                 </Td>
+diff --git a/src/app/admin/vendors/page.tsx b/src/app/admin/vendors/page.tsx
+index 0c3de74..c8b8fe9 100644
+--- a/src/app/admin/vendors/page.tsx
++++ b/src/app/admin/vendors/page.tsx
+@@ -1,7 +1,8 @@
+ 'use client';
+ 
+ import { useEffect, useState } from 'react';
+-import { Users, Loader2, RefreshCw, Check, X, MapPin, Phone, IdCard } from 'lucide-react';
++import Link from 'next/link';
++import { Users, Loader2, RefreshCw, Check, X, MapPin, Phone, IdCard, Wallet } from 'lucide-react';
+ import toast from 'react-hot-toast';
+ import { adminApi, VendorListItem } from '@/lib/admin-services';
+ import { productsApi } from '@/lib/services';
+@@ -191,7 +192,11 @@ export default function AdminVendorsPage() {
+                       </>
+                     )}
+                     {v.vendorStatus === 'APPROVED' && (
+-                      <span className="text-xs text-white/45">Active</span>
++                      <Link href={`/admin/finance?tab=wallets&vendor=${v.id}`}>
++                        <Button size="sm" variant="secondary">
++                          <Wallet size={12} /> View Wallet
++                        </Button>
++                      </Link>
+                     )}
+                   </div>
+                 </Td>
+diff --git a/src/app/vendor-portal/layout.tsx b/src/app/vendor-portal/layout.tsx
+index bdf5c5f..dc82c37 100644
+--- a/src/app/vendor-portal/layout.tsx
++++ b/src/app/vendor-portal/layout.tsx
+@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
+ import { useRouter, usePathname } from 'next/navigation';
+ import Link from 'next/link';
+ import {
+-  LayoutDashboard, Package, User, LogOut, Loader2, Bell,
++  LayoutDashboard, Package, Wallet, User, LogOut, Loader2, Bell,
+ } from 'lucide-react';
+ import toast from 'react-hot-toast';
+ import { useAuthStore } from '@/lib/auth-store';
+@@ -12,6 +12,7 @@ import { useAuthStore } from '@/lib/auth-store';
+ const NAV_ITEMS = [
+   { href: '/vendor-portal/dashboard', label: 'Home', icon: LayoutDashboard },
+   { href: '/vendor-portal/orders', label: 'Orders', icon: Package },
++  { href: '/vendor-portal/wallet', label: 'Wallet', icon: Wallet },
+   { href: '/vendor-portal/profile', label: 'Profile', icon: User },
+ ];
+ 
+@@ -141,7 +142,7 @@ export default function VendorPortalLayout({ children }: { children: React.React
+       <main className="px-5 lg:px-10 py-6 lg:py-10">{children}</main>
+ 
+       {/* ── Mobile bottom nav ── */}
+-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-navy border-t border-white/[0.08] grid grid-cols-3">
++      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-navy border-t border-white/[0.08] grid grid-cols-4">
+         {NAV_ITEMS.map((item) => {
+           const active = pathname === item.href || pathname.startsWith(item.href + '/');
+           return (
+diff --git a/src/app/vendor-portal/wallet/page.tsx b/src/app/vendor-portal/wallet/page.tsx
+new file mode 100644
+index 0000000..b3a1fef
+--- /dev/null
++++ b/src/app/vendor-portal/wallet/page.tsx
+@@ -0,0 +1,262 @@
++'use client';
++
++import { useEffect, useState, useCallback } from 'react';
++import {
++  Wallet, Bike, Banknote, Loader2, Snowflake, Receipt, FileText,
++  ChevronLeft, ChevronRight,
++} from 'lucide-react';
++import toast from 'react-hot-toast';
++import {
++  vendorPortalApi, VendorWallet, WalletTransaction, Settlement,
++} from '@/lib/vendor-portal-services';
++import {
++  StatCard, PageHeader, StatusBadge, Table, Th, Td, EmptyState, Button,
++} from '@/components/admin/ui';
++import { formatPrice, formatDate } from '@/lib/utils';
++
++const PAGE_SIZE = 20;
++
++const ENTRY_TYPE_META: Record<
++  WalletTransaction['type'],
++  { label: string; badge: 'delivered' | 'confirmed' | 'cancelled' | 'suspended' | 'assigned' | 'delivering' }
++> = {
++  PRODUCT_VALUE: { label: 'Product Value', badge: 'delivered' },
++  RIDER_EARNING: { label: 'Rider Earning', badge: 'confirmed' },
++  COMMISSION_DEDUCTED: { label: 'Commission', badge: 'cancelled' },
++  REFUND: { label: 'Refund', badge: 'suspended' },
++  ADJUSTMENT: { label: 'Adjustment', badge: 'assigned' },
++  SETTLEMENT_PAYOUT: { label: 'Settlement', badge: 'delivering' },
++};
++
++const SETTLEMENT_BADGE: Record<Settlement['status'], 'pending' | 'approved' | 'delivered'> = {
++  PENDING: 'pending',
++  APPROVED: 'approved',
++  PAID: 'delivered',
++};
++
++export default function VendorWalletPage() {
++  const [wallet, setWallet] = useState<VendorWallet | null>(null);
++  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
++  const [txTotal, setTxTotal] = useState(0);
++  const [page, setPage] = useState(0);
++  const [settlements, setSettlements] = useState<Settlement[]>([]);
++  const [loading, setLoading] = useState(true);
++
++  const load = useCallback(async (p: number) => {
++    try {
++      const [w, tx, st] = await Promise.all([
++        vendorPortalApi.wallet(),
++        vendorPortalApi.walletTransactions(PAGE_SIZE, p * PAGE_SIZE),
++        vendorPortalApi.walletSettlements(),
++      ]);
++      setWallet(w);
++      setTransactions(tx.transactions);
++      setTxTotal(tx.total);
++      setSettlements(st);
++    } catch {
++      toast.error('Failed to load wallet');
++    } finally {
++      setLoading(false);
++    }
++  }, []);
++
++  useEffect(() => { load(page); }, [load, page]);
++
++  if (loading || !wallet) {
++    return (
++      <div className="flex items-center justify-center min-h-[400px]">
++        <Loader2 className="animate-spin text-flowgreen" size={32} />
++      </div>
++    );
++  }
++
++  const codPct = wallet.codLimit
++    ? Math.min(100, (wallet.codLiability / wallet.codLimit) * 100)
++    : 0;
++  const nearLimit = wallet.codLimit != null && codPct >= 80;
++  const totalPages = Math.ceil(txTotal / PAGE_SIZE);
++
++  return (
++    <>
++      <PageHeader title="Wallet" subtitle="Your earnings, commissions, and settlements" />
++
++      {/* ── Frozen banner ── */}
++      {wallet.isFrozen && (
++        <div className="mb-6 flex items-center gap-3 bg-red-500/10 border border-red-500/30 rounded-2xl px-5 py-4">
++          <Snowflake className="text-red-400 flex-shrink-0" size={20} />
++          <div>
++            <div className="font-bold text-red-400 text-sm">Account Frozen</div>
++            <div className="text-white/60 text-xs mt-0.5">
++              Financial activity is paused. Please contact FlowX admin to resolve.
++            </div>
++          </div>
++        </div>
++      )}
++
++      {/* ── Summary cards ── */}
++      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
++        <StatCard
++          label="Net Payable"
++          value={formatPrice(wallet.netPayable)}
++          sublabel="Your current ledger balance"
++          icon={Wallet}
++          color="green"
++        />
++        <StatCard
++          label="Rider Earnings"
++          value={formatPrice(wallet.totalRiderEarning)}
++          sublabel={`Commission deducted: ${formatPrice(wallet.totalCommission)}`}
++          icon={Bike}
++          color="cyan"
++        />
++
++        {/* COD liability / limit with progress bar */}
++        <div className={`bg-navy border rounded-2xl p-6 ${nearLimit ? 'border-red-500/40' : 'border-amber-500/20'}`}>
++          <div className="flex items-start justify-between mb-4">
++            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${nearLimit ? 'bg-red-500/10' : 'bg-amber-500/10'}`}>
++              <Banknote className={nearLimit ? 'text-red-400' : 'text-amber-400'} size={22} />
++            </div>
++          </div>
++          <div className="text-xs text-white/50 uppercase tracking-wide mb-1">COD Liability</div>
++          <div className="font-syne font-extrabold text-3xl text-white">
++            {formatPrice(wallet.codLiability)}
++          </div>
++          {wallet.codLimit != null ? (
++            <div className="mt-3">
++              <div className="h-2 rounded-full bg-white/[0.08] overflow-hidden">
++                <div
++                  className={`h-full rounded-full transition-all ${nearLimit ? 'bg-red-500' : 'bg-amber-400'}`}
++                  style={{ width: `${codPct}%` }}
++                />
++              </div>
++              <div className={`text-xs mt-1.5 ${nearLimit ? 'text-red-400 font-semibold' : 'text-white/45'}`}>
++                {nearLimit && '⚠ '}
++                {formatPrice(wallet.codLiability)} of {formatPrice(wallet.codLimit)} limit
++              </div>
++            </div>
++          ) : (
++            <div className="text-xs text-white/45 mt-1.5">No COD limit set</div>
++          )}
++        </div>
++      </div>
++
++      {/* ── Transactions ── */}
++      <div className="mb-8">
++        <h2 className="font-syne font-bold text-white text-lg mb-4">Transactions</h2>
++        {transactions.length === 0 ? (
++          <EmptyState
++            icon={Receipt}
++            title="No transactions yet"
++            description="Earnings appear here after your orders are delivered."
++          />
++        ) : (
++          <>
++            <Table>
++              <thead>
++                <tr>
++                  <Th>Date</Th>
++                  <Th>Type</Th>
++                  <Th>Order #</Th>
++                  <Th className="text-right">Amount</Th>
++                </tr>
++              </thead>
++              <tbody>
++                {transactions.map((tx) => {
++                  const meta = ENTRY_TYPE_META[tx.type];
++                  const amount = Number(tx.amount);
++                  return (
++                    <tr key={tx.id} className="hover:bg-white/[0.02]">
++                      <Td className="whitespace-nowrap">{formatDate(tx.createdAt)}</Td>
++                      <Td><StatusBadge variant={meta.badge}>{meta.label}</StatusBadge></Td>
++                      <Td>
++                        {tx.order ? (
++                          <span className="font-mono text-cyan2 text-xs">{tx.order.orderNumber}</span>
++                        ) : (
++                          <span className="text-white/35">—</span>
++                        )}
++                      </Td>
++                      <Td className={`text-right font-bold whitespace-nowrap ${amount >= 0 ? 'text-flowgreen' : 'text-red-400'}`}>
++                        {amount >= 0 ? '+' : '−'}{formatPrice(Math.abs(amount))}
++                      </Td>
++                    </tr>
++                  );
++                })}
++              </tbody>
++            </Table>
++
++            {totalPages > 1 && (
++              <div className="flex items-center justify-between mt-4">
++                <div className="text-xs text-white/45">
++                  Page {page + 1} of {totalPages} · {txTotal} transactions
++                </div>
++                <div className="flex gap-2">
++                  <Button variant="secondary" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
++                    <ChevronLeft size={14} /> Prev
++                  </Button>
++                  <Button variant="secondary" size="sm" disabled={page + 1 >= totalPages} onClick={() => setPage(page + 1)}>
++                    Next <ChevronRight size={14} />
++                  </Button>
++                </div>
++              </div>
++            )}
++          </>
++        )}
++      </div>
++
++      {/* ── Settlement history ── */}
++      <div>
++        <h2 className="font-syne font-bold text-white text-lg mb-4">Settlement History</h2>
++        {settlements.length === 0 ? (
++          <EmptyState
++            icon={FileText}
++            title="No settlements yet"
++            description="FlowX generates settlements weekly. Your payout history will show here."
++          />
++        ) : (
++          <Table>
++            <thead>
++              <tr>
++                <Th>Period</Th>
++                <Th>Status</Th>
++                <Th className="text-right">Product Value</Th>
++                <Th className="text-right">Rider Earnings</Th>
++                <Th className="text-right">Commission</Th>
++                <Th className="text-right">Net Payable</Th>
++                <Th>Paid Via</Th>
++              </tr>
++            </thead>
++            <tbody>
++              {settlements.map((s) => {
++                const net = Number(s.netPayable);
++                return (
++                  <tr key={s.id} className="hover:bg-white/[0.02]">
++                    <Td className="whitespace-nowrap text-xs">
++                      {formatDate(s.periodStart)} – {formatDate(s.periodEnd)}
++                    </Td>
++                    <Td><StatusBadge variant={SETTLEMENT_BADGE[s.status]}>{s.status}</StatusBadge></Td>
++                    <Td className="text-right">{formatPrice(s.totalProductValue)}</Td>
++                    <Td className="text-right">{formatPrice(s.totalRiderEarning)}</Td>
++                    <Td className="text-right text-red-400">−{formatPrice(s.totalCommission)}</Td>
++                    <Td className={`text-right font-bold ${net >= 0 ? 'text-flowgreen' : 'text-red-400'}`}>
++                      {net >= 0 ? '' : '−'}{formatPrice(Math.abs(net))}
++                    </Td>
++                    <Td className="text-xs">
++                      {s.status === 'PAID' ? (
++                        <div>
++                          <div className="text-white/85">{s.paymentMethod}</div>
++                          {s.paymentReference && <div className="text-white/40 font-mono">{s.paymentReference}</div>}
++                        </div>
++                      ) : (
++                        <span className="text-white/35">—</span>
++                      )}
++                    </Td>
++                  </tr>
++                );
++              })}
++            </tbody>
++          </Table>
++        )}
++      </div>
++    </>
++  );
++}
+diff --git a/src/lib/admin-services.ts b/src/lib/admin-services.ts
+index 87ffd24..464d0ca 100644
+--- a/src/lib/admin-services.ts
++++ b/src/lib/admin-services.ts
+@@ -11,6 +11,13 @@ interface AdminStats {
+   orders: { today: number; month: number; pending: number };
+   subscriptions: { active: number };
+   revenue: { total: number; month: number };
++  finance: {
++    codCollected: number;
++    onlineReceived: number;
++    outstandingCodLiability: number;
++    commissionRevenue: number;
++    frozenVendors: number;
++  };
+ }
+ 
+ interface VendorListItem extends User {
+@@ -75,4 +82,82 @@ export const adminApi = {
+   },
+ };
+ 
+-export type { AdminStats, VendorListItem };
++// ═══ Finance (admin) ═══
++
++import type { VendorWallet, WalletTransaction, Settlement } from './vendor-portal-services';
++
++interface AdminSettlement extends Settlement {
++  vendorId: string;
++  vendor?: { id: string; name: string; phone: string };
++}
++
++interface UnsettledBalance {
++  vendor: { id: string; name: string; phone: string; codLiability: string; zone?: { name: string } };
++  period: { start: string; end: string };
++  totalProductValue: number;
++  totalRiderEarning: number;
++  totalCommission: number;
++  netPayable: number;
++}
++
++interface CommissionSettings {
++  id: string;
++  defaultCommissionPct: string;
++  updatedAt: string;
++}
++
++interface AdminVendorWallet {
++  vendor: {
++    id: string; name: string; phone: string; vendorStatus: string;
++    codLimit: string | null; codLiability: string; isFrozen: boolean;
++    zone?: { name: string };
++  };
++  wallet: VendorWallet;
++  transactions: WalletTransaction[];
++  total: number;
++}
++
++export const financeApi = {
++  getCommissionSettings: async (): Promise<CommissionSettings> => {
++    const { data } = await api.get('/admin/finance/commission-settings');
++    return data.settings;
++  },
++  updateCommissionSettings: async (defaultCommissionPct: number): Promise<CommissionSettings> => {
++    const { data } = await api.patch('/admin/finance/commission-settings', { defaultCommissionPct });
++    return data.settings;
++  },
++  updateProductRates: async (productId: string, rates: { commissionPct?: number | null; riderEarningPerUnit?: number }) => {
++    const { data } = await api.patch(`/admin/finance/products/${productId}/rates`, rates);
++    return data.product;
++  },
++  getVendorWallet: async (vendorId: string, limit = 20, offset = 0): Promise<AdminVendorWallet> => {
++    const { data } = await api.get(`/admin/finance/vendors/${vendorId}/wallet`, { params: { limit, offset } });
++    return data;
++  },
++  setCodLimit: async (vendorId: string, codLimit: number | null) => {
++    const { data } = await api.patch(`/admin/finance/vendors/${vendorId}/cod-limit`, { codLimit });
++    return data.vendor;
++  },
++  setFrozen: async (vendorId: string, isFrozen: boolean) => {
++    const { data } = await api.patch(`/admin/finance/vendors/${vendorId}/freeze`, { isFrozen });
++    return data.vendor;
++  },
++  pendingSettlements: async (): Promise<{ unsettled: UnsettledBalance[]; awaiting: AdminSettlement[] }> => {
++    const { data } = await api.get('/admin/finance/settlements/pending');
++    return { unsettled: data.unsettled, awaiting: data.awaiting };
++  },
++  generateSettlements: async (period?: { periodStart?: string; periodEnd?: string }) => {
++    const { data } = await api.post('/admin/finance/settlements/generate', period || {});
++    return { message: data.message as string, settlements: data.settlements as AdminSettlement[] };
++  },
++  approveSettlement: async (id: string): Promise<AdminSettlement> => {
++    const { data } = await api.post(`/admin/finance/settlements/${id}/approve`);
++    return data.settlement;
++  },
++  paySettlement: async (id: string, paymentMethod: string, paymentReference?: string): Promise<AdminSettlement> => {
++    const { data } = await api.post(`/admin/finance/settlements/${id}/pay`, { paymentMethod, paymentReference });
++    return data.settlement;
++  },
++};
++
++export type { AdminStats, VendorListItem, AdminSettlement, UnsettledBalance, CommissionSettings, AdminVendorWallet };
+diff --git a/src/lib/vendor-portal-services.ts b/src/lib/vendor-portal-services.ts
+index aed6e26..62df71c 100644
+--- a/src/lib/vendor-portal-services.ts
++++ b/src/lib/vendor-portal-services.ts
+@@ -12,6 +12,40 @@ interface VendorStats {
+   totalAssigned: number;
+ }
+ 
++interface VendorWallet {
++  totalProductValue: number;
++  totalRiderEarning: number;
++  totalCommission: number;
++  netPayable: number;
++  codLiability: number;
++  codLimit: number | null;
++  isFrozen: boolean;
++}
++
++interface WalletTransaction {
++  id: string;
++  type: 'PRODUCT_VALUE' | 'RIDER_EARNING' | 'COMMISSION_DEDUCTED' | 'REFUND' | 'ADJUSTMENT' | 'SETTLEMENT_PAYOUT';
++  amount: string;
++  description: string | null;
++  createdAt: string;
++  order: { orderNumber: string; paymentMethod: string } | null;
++}
++
++interface Settlement {
++  id: string;
++  periodStart: string;
++  periodEnd: string;
++  totalProductValue: string;
++  totalRiderEarning: string;
++  totalCommission: string;
++  netPayable: string;
++  status: 'PENDING' | 'APPROVED' | 'PAID';
++  paymentMethod: string | null;
++  paymentReference: string | null;
++  paidAt: string | null;
++  createdAt: string;
++}
++
+ export const vendorPortalApi = {
+   // Dashboard stats
+   dashboard: async (): Promise<VendorStats> => {
+@@ -36,6 +70,24 @@ export const vendorPortalApi = {
+     const { data } = await api.patch(`/orders/${orderId}/status`, { status, notes });
+     return data.order;
+   },
++
++  // Wallet balance summary
++  wallet: async (): Promise<VendorWallet> => {
++    const { data } = await api.get('/vendors/wallet');
++    return data.wallet;
++  },
++
++  // Paginated ledger transactions
++  walletTransactions: async (limit = 20, offset = 0): Promise<{ transactions: WalletTransaction[]; total: number }> => {
++    const { data } = await api.get('/vendors/wallet/transactions', { params: { limit, offset } });
++    return { transactions: data.transactions, total: data.total };
++  },
++
++  // Settlement history
++  walletSettlements: async (): Promise<Settlement[]> => {
++    const { data } = await api.get('/vendors/wallet/settlements');
++    return data.settlements;
++  },
+ };
+ 
+-export type { VendorStats };
++export type { VendorStats, VendorWallet, WalletTransaction, Settlement };
+diff --git a/src/types/index.ts b/src/types/index.ts
+index 181b0d6..bd8eaa2 100644
+--- a/src/types/index.ts
++++ b/src/types/index.ts
+@@ -57,6 +57,9 @@ export interface Product {
+   minQuantity: number;
+   imageUrl?: string;
+   isActive: boolean;
++  commissionPct?: number | string | null;
++  riderEarningPerUnit?: number | string;
++  hasRiderDelivery?: boolean;
+ }
+ 
+ export interface OrderItem {

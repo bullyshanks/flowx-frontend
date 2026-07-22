@@ -57,6 +57,9 @@ export interface Product {
   minQuantity: number;
   imageUrl?: string;
   isActive: boolean;
+  commissionPct?: number | string | null;
+  riderEarningPerUnit?: number | string;
+  hasRiderDelivery?: boolean;
 }
 
 export interface OrderItem {
