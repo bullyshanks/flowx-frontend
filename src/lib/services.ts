@@ -5,7 +5,7 @@
 import api from './api';
 import type {
   Product, Zone, Order, User,
-  PlaceOrderInput, VendorRegisterInput,
+  PlaceOrderInput, VendorRegisterInput, RiderRegisterInput,
 } from '@/types';
 
 // ─── Products & Zones ──
@@ -74,6 +74,10 @@ export const authApi = {
   },
   registerVendor: async (payload: VendorRegisterInput) => {
     const { data } = await api.post('/auth/register/vendor', payload);
+    return data;
+  },
+  registerRider: async (payload: RiderRegisterInput) => {
+    const { data } = await api.post('/auth/register/rider', payload);
     return data;
   },
   sendOtp: async (phone: string, purpose = 'login') => {

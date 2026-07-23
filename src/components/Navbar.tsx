@@ -13,6 +13,7 @@ const links = [
   { href: '/#how', label: 'How It Works' },
   { href: '/#features', label: 'Why Us' },
   { href: '/vendor', label: 'Become a Vendor' },
+  { href: '/rider', label: 'Become a Rider' },
   { href: '/track', label: 'Track Order' },
   { href: '/#contact', label: 'Contact' },
 ];

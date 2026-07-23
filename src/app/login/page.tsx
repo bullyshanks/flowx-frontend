@@ -216,6 +216,10 @@ export default function LoginPage() {
               <a href="/vendor" className="text-cyan2 hover:underline">
                 Register as a Vendor
               </a>
+              {' '}or{' '}
+              <a href="/rider" className="text-cyan2 hover:underline">
+                Register as a Rider
+              </a>
             </div>
           </div>
         </div>

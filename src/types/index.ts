@@ -148,6 +148,14 @@ export interface VendorRegisterInput {
   zoneId: string;
 }
 
+export interface RiderRegisterInput {
+  name: string;
+  phone: string;
+  password: string;
+  vehicleDetails?: string;
+  zoneId: string;
+}
+
 export interface CartItem {
   productId: string;
   product: Product;
