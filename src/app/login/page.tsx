@@ -74,6 +74,7 @@ export default function LoginPage() {
       setTimeout(() => {
         if (data.user.role === 'ADMIN') router.push('/admin');
         else if (data.user.role === 'VENDOR') router.push('/vendor-portal/dashboard');
+        else if (data.user.role === 'RIDER') router.push('/rider-portal/dashboard');
         else router.push('/');
       }, 800);
     } catch (err: unknown) {
