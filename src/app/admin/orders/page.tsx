@@ -123,8 +123,10 @@ export default function AdminOrdersPage() {
               <Th>Customer</Th>
               <Th>Zone</Th>
               <Th>Total</Th>
+              <Th>Fulfillment</Th>
               <Th>Status</Th>
               <Th>Vendor</Th>
+              <Th>Rider</Th>
               <Th>Date</Th>
               <Th>Actions</Th>
             </tr>
@@ -149,6 +151,11 @@ export default function AdminOrdersPage() {
                 <Td>{order.zone?.name || '—'}</Td>
                 <Td className="font-bold text-white">{formatPrice(order.total)}</Td>
                 <Td>
+                  <StatusBadge variant={statusToBadge(order.fulfillmentType)}>
+                    {order.fulfillmentType === 'SELF_PICKUP' ? 'Pickup' : 'Delivery'}
+                  </StatusBadge>
+                </Td>
+                <Td>
                   <StatusBadge variant={statusToBadge(order.status)}>
                     {order.status.replace('_', ' ')}
                   </StatusBadge>
@@ -156,6 +163,15 @@ export default function AdminOrdersPage() {
                 <Td>
                   {order.vendor ? (
                     <span className="text-flowgreen text-sm">{order.vendor.name}</span>
+                  ) : (
+                    <span className="text-white/35 text-sm">Unassigned</span>
+                  )}
+                </Td>
+                <Td>
+                  {order.fulfillmentType === 'SELF_PICKUP' ? (
+                    <span className="text-white/35 text-sm">N/A</span>
+                  ) : order.rider ? (
+                    <span className="text-cyan2 text-sm">{order.rider.name}</span>
                   ) : (
                     <span className="text-white/35 text-sm">Unassigned</span>
                   )}

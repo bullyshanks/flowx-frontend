@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  Package, CheckCircle2, Clock, TrendingUp, Loader2, MapPin, ArrowRight,
+  Package, CheckCircle2, Clock, TrendingUp, Loader2, MapPin, ArrowRight, Store, Boxes,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { vendorPortalApi, VendorStats } from '@/lib/vendor-portal-services';
@@ -16,9 +16,13 @@ import type { Order } from '@/types';
 
 export default function VendorDashboardPage() {
   const user = useAuthStore((s) => s.user);
+  const setAuth = useAuthStore((s) => s.setAuth);
+  const token = useAuthStore((s) => s.token);
   const [stats, setStats] = useState<VendorStats | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savingOpen, setSavingOpen] = useState(false);
+  const [savingStock, setSavingStock] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -66,12 +70,64 @@ export default function VendorDashboardPage() {
     (o) => o.status === 'PENDING' || o.status === 'CONFIRMED'
   );
 
+  const toggleOpen = async () => {
+    if (!user) return;
+    setSavingOpen(true);
+    try {
+      const updated = await vendorPortalApi.updateStorefront({ isOpen: !(user.isOpen ?? true) });
+      if (token) setAuth(token, { ...user, isOpen: updated.isOpen });
+      toast.success(updated.isOpen ? "You're open for orders" : 'Marked closed — new orders paused');
+    } catch {
+      toast.error('Failed to update storefront');
+    } finally {
+      setSavingOpen(false);
+    }
+  };
+
+  const toggleStock = async () => {
+    if (!user) return;
+    setSavingStock(true);
+    try {
+      const updated = await vendorPortalApi.updateStorefront({ stockStatus: !(user.stockStatus ?? true) });
+      if (token) setAuth(token, { ...user, stockStatus: updated.stockStatus });
+      toast.success(updated.stockStatus ? 'Marked in stock' : 'Marked out of stock');
+    } catch {
+      toast.error('Failed to update stock status');
+    } finally {
+      setSavingStock(false);
+    }
+  };
+
   return (
     <>
       <PageHeader
         title={`${greeting}, ${user?.name?.split(' ')[0] || 'Vendor'}`}
         subtitle={`Your zone: ${user?.zone?.name || '—'}`}
       />
+
+      {/* ── Storefront toggles ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+        <ToggleCard
+          icon={Store}
+          label="Storefront"
+          activeLabel="Open"
+          inactiveLabel="Closed"
+          active={user?.isOpen ?? true}
+          saving={savingOpen}
+          onToggle={toggleOpen}
+          hint={user?.isOpen === false ? "You won't receive new order offers while closed." : 'Vendors in your zone can be offered new orders.'}
+        />
+        <ToggleCard
+          icon={Boxes}
+          label="Stock"
+          activeLabel="In Stock"
+          inactiveLabel="Out of Stock"
+          active={user?.stockStatus ?? true}
+          saving={savingStock}
+          onToggle={toggleStock}
+          hint={user?.stockStatus === false ? "You won't receive new order offers until back in stock." : 'Products are available to fulfill.'}
+        />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
@@ -151,6 +207,47 @@ export default function VendorDashboardPage() {
         )}
       </div>
     </>
+  );
+}
+
+// ─── Storefront toggle card ──
+function ToggleCard({
+  icon: Icon, label, activeLabel, inactiveLabel, active, saving, onToggle, hint,
+}: {
+  icon: React.ElementType;
+  label: string;
+  activeLabel: string;
+  inactiveLabel: string;
+  active: boolean;
+  saving: boolean;
+  onToggle: () => void;
+  hint: string;
+}) {
+  return (
+    <div className={`bg-navy border rounded-2xl p-5 flex items-center justify-between gap-4 ${active ? 'border-flowgreen/30' : 'border-red-500/30'}`}>
+      <div className="flex items-center gap-3 min-w-0">
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${active ? 'bg-flowgreen/10' : 'bg-red-500/10'}`}>
+          <Icon className={active ? 'text-flowgreen' : 'text-red-400'} size={20} />
+        </div>
+        <div className="min-w-0">
+          <div className="text-[11px] text-white/50 uppercase tracking-wide">{label}</div>
+          <div className={`font-syne font-bold ${active ? 'text-flowgreen' : 'text-red-400'}`}>
+            {active ? activeLabel : inactiveLabel}
+          </div>
+          <div className="text-[11px] text-white/45 mt-0.5 truncate">{hint}</div>
+        </div>
+      </div>
+      <button
+        onClick={onToggle}
+        disabled={saving}
+        role="switch"
+        aria-checked={active}
+        aria-label={`Toggle ${label.toLowerCase()}`}
+        className={`relative w-12 h-7 rounded-full transition flex-shrink-0 disabled:opacity-50 ${active ? 'bg-flowgreen' : 'bg-white/15'}`}
+      >
+        <span className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${active ? 'translate-x-6' : 'translate-x-1'}`} />
+      </button>
+    </div>
   );
 }
 

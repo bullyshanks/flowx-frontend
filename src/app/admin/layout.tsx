@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
-  LayoutDashboard, Package, Users, Repeat, ShoppingCart,
+  LayoutDashboard, Package, Users, Bike, Repeat, ShoppingCart,
   Wallet, Settings, LogOut, Menu, X, Loader2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/orders', label: 'Orders', icon: Package },
   { href: '/admin/vendors', label: 'Vendors', icon: Users },
+  { href: '/admin/riders', label: 'Riders', icon: Bike },
   { href: '/admin/subscriptions', label: 'Subscriptions', icon: Repeat },
   { href: '/admin/products', label: 'Products', icon: ShoppingCart },
   { href: '/admin/finance', label: 'Finance', icon: Wallet },
@@ -192,7 +193,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       )}
 
       {/* ── Main content ── */}
-      <main className="flex-1 lg:ml-64 pt-20 lg:pt-0 min-h-screen">
+      {/* min-w-0 keeps table intrinsic width from escaping overflow-x wrappers */}
+      <main className="flex-1 min-w-0 lg:ml-64 pt-20 lg:pt-0 min-h-screen">
         <div className="px-5 lg:px-10 py-6 lg:py-10">{children}</div>
       </main>
     </div>

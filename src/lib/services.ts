@@ -92,6 +92,10 @@ export const authApi = {
     const { data } = await api.get('/auth/me');
     return data.user;
   },
+  submitKyc: async (payload: { cnicFront: string; cnicBack: string; selfieUrl: string }) => {
+    const { data } = await api.post('/auth/kyc', payload);
+    return data as { success: boolean; message: string; user: { kycStatus: string } };
+  },
 };
 
 // ─── Vendor (admin operations) ──

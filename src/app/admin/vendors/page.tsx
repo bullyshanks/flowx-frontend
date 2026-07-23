@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Users, Loader2, RefreshCw, Check, X, MapPin, Phone, IdCard, Wallet } from 'lucide-react';
+import { Users, Loader2, RefreshCw, Check, X, MapPin, Phone, IdCard, Wallet, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminApi, VendorListItem } from '@/lib/admin-services';
 import { productsApi } from '@/lib/services';
 import {
   PageHeader, Table, Th, Td, StatusBadge, statusToBadge, Button, EmptyState,
 } from '@/components/admin/ui';
+import KycReviewModal from '@/components/admin/KycReviewModal';
 import { formatDate } from '@/lib/utils';
 import type { Zone } from '@/types';
 
@@ -26,6 +27,7 @@ export default function AdminVendorsPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [editingZone, setEditingZone] = useState<string | null>(null);
+  const [kycTarget, setKycTarget] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -128,6 +130,8 @@ export default function AdminVendorsPage() {
               <Th>CNIC</Th>
               <Th>Zone</Th>
               <Th>Status</Th>
+              <Th>KYC</Th>
+              <Th>Storefront</Th>
               <Th>Orders</Th>
               <Th>Joined</Th>
               <Th>Actions</Th>
@@ -141,7 +145,10 @@ export default function AdminVendorsPage() {
                     <div className="w-9 h-9 rounded-full bg-gradient-to-br from-electric to-flowgreen flex items-center justify-center font-syne font-bold text-sm flex-shrink-0">
                       {v.name?.[0]}
                     </div>
-                    <span className="font-semibold text-white">{v.name}</span>
+                    <div>
+                      <div className="font-semibold text-white">{v.name}</div>
+                      {v.businessName && <div className="text-[11px] text-white/50">{v.businessName}</div>}
+                    </div>
                   </div>
                 </Td>
                 <Td className="text-white/75 text-xs font-mono">{v.phone}</Td>
@@ -177,6 +184,28 @@ export default function AdminVendorsPage() {
                     </StatusBadge>
                   )}
                 </Td>
+                <Td>
+                  <button
+                    onClick={() => setKycTarget(v.id)}
+                    className="inline-flex items-center gap-1.5 hover:opacity-80 transition"
+                    title="View KYC submission"
+                  >
+                    <StatusBadge variant={statusToBadge(v.kycStatus || 'NOT_SUBMITTED')}>
+                      {(v.kycStatus || 'NOT_SUBMITTED').replace('_', ' ')}
+                    </StatusBadge>
+                    <ShieldAlert size={13} className="text-white/40" />
+                  </button>
+                </Td>
+                <Td>
+                  <div className="flex flex-col gap-1">
+                    <span className={`text-[11px] font-semibold ${v.isOpen === false ? 'text-red-400' : 'text-flowgreen'}`}>
+                      {v.isOpen === false ? 'Closed' : 'Open'}
+                    </span>
+                    <span className={`text-[11px] ${v.stockStatus === false ? 'text-red-400' : 'text-white/50'}`}>
+                      {v.stockStatus === false ? 'Out of stock' : 'In stock'}
+                    </span>
+                  </div>
+                </Td>
                 <Td className="font-semibold text-white">{v._count?.assignedOrders || 0}</Td>
                 <Td className="text-white/55 text-xs">{formatDate(v.createdAt)}</Td>
                 <Td>
@@ -204,6 +233,14 @@ export default function AdminVendorsPage() {
             ))}
           </tbody>
         </Table>
+      )}
+
+      {kycTarget && (
+        <KycReviewModal
+          userId={kycTarget}
+          onClose={() => setKycTarget(null)}
+          onReviewed={() => { setKycTarget(null); load(); }}
+        />
       )}
     </>
   );

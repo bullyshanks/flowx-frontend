@@ -1,18 +1,28 @@
 import type { Metadata } from 'next';
-import { Syne, DM_Sans } from 'next/font/google';
+import { Bricolage_Grotesque, Hanken_Grotesk, Noto_Nastaliq_Urdu } from 'next/font/google';
 import { Toaster } from 'react-hot-toast';
 import './globals.css';
 
-const syne = Syne({
+// Display face — liquid, characterful grotesque for headings/numerals.
+const bricolage = Bricolage_Grotesque({
   subsets: ['latin'],
   weight: ['400', '600', '700', '800'],
-  variable: '--font-syne',
+  variable: '--font-display',
 });
 
-const dmSans = DM_Sans({
+// Body face — warm, highly legible grotesque for UI text and data.
+const hanken = Hanken_Grotesk({
   subsets: ['latin'],
-  weight: ['300', '400', '500', '600'],
-  variable: '--font-dm-sans',
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-body',
+});
+
+// Urdu face — proper Nastaliq rendering for the bilingual wallet copy.
+// Loaded app-wide but only applied where lang="ur" is set (see .font-urdu below).
+const notoNastaliq = Noto_Nastaliq_Urdu({
+  subsets: ['arabic'],
+  weight: ['400', '600'],
+  variable: '--font-urdu',
 });
 
 export const metadata: Metadata = {
@@ -24,7 +34,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${syne.variable} ${dmSans.variable}`}>
+    <html lang="en" className={`${bricolage.variable} ${hanken.variable} ${notoNastaliq.variable}`}>
       <body>
         {children}
         <Toaster

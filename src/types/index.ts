@@ -2,9 +2,13 @@
 //  Type definitions matching backend Prisma models
 // ═══════════════════════════════════════════════════════════
 
-export type Role = 'CUSTOMER' | 'VENDOR' | 'ADMIN';
+export type Role = 'CUSTOMER' | 'VENDOR' | 'RIDER' | 'ADMIN';
 
 export type VendorStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
+
+export type KycStatus = 'NOT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export type FulfillmentType = 'SELF_PICKUP' | 'DELIVERY';
 
 export type OrderStatus =
   | 'PENDING'
@@ -37,8 +41,22 @@ export interface User {
   role: Role;
   isVerified: boolean;
   vendorStatus?: VendorStatus;
+  kycStatus?: KycStatus;
+  rejectedReason?: string;
   defaultAddress?: string;
   zone?: { id: string; name: string };
+  // Vendor-specific
+  businessName?: string;
+  shopDetails?: string;
+  isOpen?: boolean;
+  stockStatus?: boolean;
+  // Rider-specific
+  vehicleDetails?: string;
+  isOnline?: boolean;
+  // Shared financial fields
+  codLimit?: number | string | null;
+  codLiability?: number | string;
+  isFrozen?: boolean;
 }
 
 export interface Zone {
@@ -88,7 +106,11 @@ export interface Order {
   deliveryAddress: string;
   deliveryDate?: string;
   deliveryTimeSlot?: string;
+  fulfillmentType: FulfillmentType;
   vendor?: { name: string; phone: string };
+  rider?: { name: string; phone: string };
+  riderId?: string | null;
+  riderAcceptDeadline?: string | null;
   subtotal: number;
   total: number;
   paymentMethod: PaymentMethod;

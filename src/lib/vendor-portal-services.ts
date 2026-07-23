@@ -88,6 +88,12 @@ export const vendorPortalApi = {
     const { data } = await api.get('/vendors/wallet/settlements');
     return data.settlements;
   },
+
+  // Storefront open/closed + in-stock/out-of-stock toggles
+  updateStorefront: async (fields: { isOpen?: boolean; stockStatus?: boolean }) => {
+    const { data } = await api.patch('/vendors/me/storefront', fields);
+    return data.vendor as { id: string; isOpen: boolean; stockStatus: boolean };
+  },
 };
 
 export type { VendorStats, VendorWallet, WalletTransaction, Settlement };

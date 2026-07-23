@@ -25,15 +25,15 @@ const COLOR_MAP = {
 export function StatCard({ label, value, sublabel, icon: Icon, color = 'blue' }: StatCardProps) {
   const c = COLOR_MAP[color];
   return (
-    <div className={`bg-navy border ${c.border} rounded-2xl p-6 transition hover:border-opacity-50`}>
+    <div className={`bg-navy border ${c.border} rounded-2xl p-6`}>
       <div className="flex items-start justify-between mb-4">
         <div className={`w-12 h-12 rounded-xl ${c.bg} flex items-center justify-center`}>
           <Icon className={c.text} size={22} />
         </div>
       </div>
-      <div className="text-xs text-white/50 uppercase tracking-wide mb-1">{label}</div>
-      <div className="font-syne font-extrabold text-3xl text-white">{value}</div>
-      {sublabel && <div className="text-xs text-white/45 mt-1.5">{sublabel}</div>}
+      <div className="text-xs text-white/60 uppercase tracking-wide mb-1">{label}</div>
+      <div className="font-bold text-3xl text-white tabular-nums">{value}</div>
+      {sublabel && <div className="text-xs text-white/60 mt-1.5">{sublabel}</div>}
     </div>
   );
 }
@@ -62,7 +62,12 @@ export function PageHeader({
 // ─── Status Badge ──
 type BadgeVariant =
   | 'pending' | 'confirmed' | 'assigned' | 'delivering' | 'delivered' | 'cancelled'
-  | 'approved' | 'rejected' | 'suspended' | 'active' | 'paused';
+  | 'approved' | 'rejected' | 'suspended' | 'active' | 'paused'
+  // Finance-domain variants — ledger entries and settlements are not order
+  // statuses; commission is normal business, not an error state.
+  | 'credit' | 'earning' | 'charge' | 'refund' | 'adjustment' | 'payout' | 'paid'
+  // KYC and fulfillment-type variants
+  | 'notsubmitted' | 'pickup' | 'delivery';
 
 const BADGE_STYLES: Record<BadgeVariant, string> = {
   pending: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
@@ -76,6 +81,16 @@ const BADGE_STYLES: Record<BadgeVariant, string> = {
   suspended: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
   active: 'bg-flowgreen/15 text-flowgreen border-flowgreen/30',
   paused: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+  credit: 'bg-flowgreen/15 text-flowgreen border-flowgreen/30',
+  earning: 'bg-cyan2/15 text-cyan2 border-cyan2/30',
+  charge: 'bg-white/10 text-white/80 border-white/20',
+  refund: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
+  adjustment: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
+  payout: 'bg-electric/15 text-cyan2 border-electric/30',
+  paid: 'bg-flowgreen/15 text-flowgreen border-flowgreen/30',
+  notsubmitted: 'bg-white/10 text-white/70 border-white/20',
+  pickup: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
+  delivery: 'bg-cyan2/15 text-cyan2 border-cyan2/30',
 };
 
 export function StatusBadge({ variant, children }: { variant: BadgeVariant; children: ReactNode }) {
@@ -102,6 +117,9 @@ export function statusToBadge(status: string): BadgeVariant {
   if (s === 'SUSPENDED') return 'suspended';
   if (s === 'ACTIVE') return 'active';
   if (s === 'PAUSED') return 'paused';
+  if (s === 'NOT_SUBMITTED') return 'notsubmitted';
+  if (s === 'SELF_PICKUP') return 'pickup';
+  if (s === 'DELIVERY') return 'delivery';
   return 'pending';
 }
 
@@ -119,7 +137,8 @@ export function Table({ children }: { children: ReactNode }) {
 export function Th({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
     <th
-      className={`px-5 py-4 text-left text-[11px] font-bold text-white/45 uppercase tracking-wider border-b border-white/[0.08] ${className}`}
+      scope="col"
+      className={`px-5 py-4 text-left text-[11px] font-bold text-white/60 uppercase tracking-wider border-b border-white/[0.08] ${className}`}
     >
       {children}
     </th>
@@ -138,8 +157,8 @@ export function Td({ children, className = '' }: { children: ReactNode; classNam
 type ButtonVariant = 'primary' | 'secondary' | 'success' | 'danger' | 'ghost';
 
 const BUTTON_STYLES: Record<ButtonVariant, string> = {
-  primary: 'bg-gradient-to-br from-electric to-[#1565C0] text-white hover:-translate-y-0.5',
-  secondary: 'bg-white/8 text-white border border-white/15 hover:bg-white/12',
+  primary: 'bg-gradient-to-br from-electric-dark to-[#0D47A1] text-white hover:-translate-y-0.5',
+  secondary: 'bg-white/10 text-white border border-white/15 hover:bg-white/15',
   success: 'bg-gradient-to-br from-flowgreen to-flowgreen-dark text-white hover:-translate-y-0.5',
   danger: 'bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25',
   ghost: 'text-white/65 hover:bg-white/5 hover:text-white',
@@ -158,7 +177,7 @@ export function Button({
   return (
     <button
       {...props}
-      className={`${sizing} ${BUTTON_STYLES[variant]} rounded-xl font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 ${props.className || ''}`}
+      className={`${sizing} ${BUTTON_STYLES[variant]} rounded-xl font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan2/70 focus-visible:ring-offset-2 focus-visible:ring-offset-navy ${props.className || ''}`}
     >
       {children}
     </button>
@@ -173,7 +192,7 @@ export function EmptyState({ icon: Icon, title, description }: { icon: LucideIco
         <Icon className="text-white/40" size={28} />
       </div>
       <h3 className="font-syne font-bold text-white text-lg mb-2">{title}</h3>
-      {description && <p className="text-white/50 text-sm">{description}</p>}
+      {description && <p className="text-white/65 text-sm">{description}</p>}
     </div>
   );
 }

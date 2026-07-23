@@ -25,7 +25,7 @@ body {
   background: white;
   color: var(--navy);
   overflow-x: hidden;
-  font-family: var(--font-dm-sans), sans-serif;
+  font-family: var(--font-body), sans-serif;
 }
 
 @layer components {

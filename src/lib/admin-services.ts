@@ -28,6 +28,30 @@ interface VendorListItem extends User {
   _count?: { assignedOrders: number };
 }
 
+interface RiderListItem extends User {
+  vehicleDetails?: string;
+  isOnline?: boolean;
+  isFrozen?: boolean;
+  codLimit?: string | number | null;
+  approvedAt?: string;
+  createdAt: string;
+  zone?: { id: string; name: string };
+  _count?: { riderOrders: number };
+}
+
+interface KycSubmission {
+  id: string;
+  name: string;
+  phone: string;
+  role: 'VENDOR' | 'RIDER';
+  vendorStatus?: string;
+  kycStatus: string;
+  cnicFront?: string;
+  cnicBack?: string;
+  selfieUrl?: string;
+  zone?: { id: string; name: string };
+}
+
 export const adminApi = {
   // ── Dashboard ──
   dashboard: async (): Promise<AdminStats> => {
@@ -75,6 +99,50 @@ export const adminApi = {
     return data.vendor;
   },
 
+  // ── Riders ──
+  listRiders: async (filters?: { status?: string; zoneId?: string }) => {
+    const { data } = await api.get('/riders', { params: filters });
+    return data.riders as RiderListItem[];
+  },
+  approveRider: async (riderId: string) => {
+    const { data } = await api.post(`/riders/${riderId}/approve`);
+    return data.rider;
+  },
+  rejectRider: async (riderId: string, reason?: string) => {
+    const { data } = await api.post(`/riders/${riderId}/reject`, { reason });
+    return data.rider;
+  },
+  changeRiderZone: async (riderId: string, zoneId: string) => {
+    const { data } = await api.patch(`/riders/${riderId}/zone`, { zoneId });
+    return data.rider;
+  },
+  setRiderCodLimit: async (riderId: string, codLimit: number | null) => {
+    const { data } = await api.patch(`/riders/${riderId}/cod-limit`, { codLimit });
+    return data.rider;
+  },
+  setRiderFrozen: async (riderId: string, isFrozen: boolean) => {
+    const { data } = await api.patch(`/riders/${riderId}/freeze`, { isFrozen });
+    return data.rider;
+  },
+
+  // ── KYC review (shared: vendor + rider) ──
+  listPendingKyc: async (role?: 'VENDOR' | 'RIDER') => {
+    const { data } = await api.get('/admin/kyc/pending', { params: { role } });
+    return data.users as KycSubmission[];
+  },
+  getKycSubmission: async (userId: string) => {
+    const { data } = await api.get(`/admin/kyc/${userId}`);
+    return data.user as KycSubmission;
+  },
+  approveKyc: async (userId: string) => {
+    const { data } = await api.post(`/admin/kyc/${userId}/approve`);
+    return data.user;
+  },
+  rejectKyc: async (userId: string, reason?: string) => {
+    const { data } = await api.post(`/admin/kyc/${userId}/reject`, { reason });
+    return data.user;
+  },
+
   // ── Subscriptions ──
   listSubscriptions: async () => {
     const { data } = await api.get('/subscriptions/admin/all');
@@ -117,6 +185,39 @@ interface AdminVendorWallet {
   total: number;
 }
 
+interface RiderWallet {
+  totalEarning: number;
+  netPayable: number;
+  codLiability: number;
+  codLimit: number | null;
+  isFrozen: boolean;
+}
+
+interface RiderSettlement {
+  id: string;
+  periodStart: string;
+  periodEnd: string;
+  totalEarning: string;
+  netPayable: string;
+  status: 'PENDING' | 'APPROVED' | 'PAID';
+  paymentMethod: string | null;
+  paymentReference: string | null;
+  paidAt: string | null;
+  createdAt: string;
+}
+
+interface AdminRiderWallet {
+  rider: {
+    id: string; name: string; phone: string; vendorStatus: string; kycStatus: string; vehicleDetails?: string;
+    codLimit: string | null; codLiability: string; isFrozen: boolean;
+    zone?: { name: string };
+  };
+  wallet: RiderWallet;
+  transactions: WalletTransaction[];
+  total: number;
+  settlements: RiderSettlement[];
+}
+
 export const financeApi = {
   getCommissionSettings: async (): Promise<CommissionSettings> => {
     const { data } = await api.get('/admin/finance/commission-settings');
@@ -142,6 +243,10 @@ export const financeApi = {
     const { data } = await api.patch(`/admin/finance/vendors/${vendorId}/freeze`, { isFrozen });
     return data.vendor;
   },
+  getRiderWallet: async (riderId: string, limit = 20, offset = 0): Promise<AdminRiderWallet> => {
+    const { data } = await api.get(`/admin/finance/riders/${riderId}/wallet`, { params: { limit, offset } });
+    return data;
+  },
   pendingSettlements: async (): Promise<{ unsettled: UnsettledBalance[]; awaiting: AdminSettlement[] }> => {
     const { data } = await api.get('/admin/finance/settlements/pending');
     return { unsettled: data.unsettled, awaiting: data.awaiting };
@@ -160,4 +265,7 @@ export const financeApi = {
   },
 };
 
-export type { AdminStats, VendorListItem, AdminSettlement, UnsettledBalance, CommissionSettings, AdminVendorWallet };
+export type {
+  AdminStats, VendorListItem, RiderListItem, KycSubmission, AdminSettlement, UnsettledBalance,
+  CommissionSettings, AdminVendorWallet, AdminRiderWallet, RiderWallet, RiderSettlement,
+};
