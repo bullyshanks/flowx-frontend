@@ -10,21 +10,22 @@ import toast from 'react-hot-toast';
 import {
   adminApi, financeApi, AdminStats, VendorListItem, RiderListItem,
   AdminSettlement, UnsettledBalance, RiderSettlement,
-  AdminRiderSettlement, UnsettledRiderBalance,
+  AdminRiderSettlement, UnsettledRiderBalance, Refund,
 } from '@/lib/admin-services';
 import type { WalletTransaction, VendorWallet } from '@/lib/vendor-portal-services';
-import { ENTRY_TYPE_META, SETTLEMENT_BADGE } from '@/lib/finance-meta';
+import { ENTRY_TYPE_META, SETTLEMENT_BADGE, REFUND_BADGE } from '@/lib/finance-meta';
 import {
   StatCard, PageHeader, StatusBadge, Table, Th, Td, Button, EmptyState,
 } from '@/components/admin/ui';
 import { formatPrice, formatDateOnly } from '@/lib/utils';
 
-type Tab = 'overview' | 'settlements' | 'riderSettlements' | 'wallets' | 'riders' | 'settings';
+type Tab = 'overview' | 'settlements' | 'riderSettlements' | 'refunds' | 'wallets' | 'riders' | 'settings';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'settlements', label: 'Settlements' },
   { id: 'riderSettlements', label: 'Rider Settlements' },
+  { id: 'refunds', label: 'Refunds' },
   { id: 'wallets', label: 'Vendor Wallets' },
   { id: 'riders', label: 'Rider Ledgers' },
   { id: 'settings', label: 'Settings' },
@@ -119,6 +120,7 @@ export default function AdminFinancePage() {
         {tab === 'overview' && <OverviewTab />}
         {tab === 'settlements' && <SettlementsTab />}
         {tab === 'riderSettlements' && <RiderSettlementsTab />}
+        {tab === 'refunds' && <RefundsTab />}
         {tab === 'wallets' && (
           selectedVendor
             ? <VendorWalletDetail vendorId={selectedVendor} onBack={() => selectVendor(null)} />
@@ -1234,6 +1236,307 @@ function RiderLedgerDetail({ riderId, onBack }: { riderId: string; onBack: () =>
                     )}
                   </Td>
                 </tr>
+              );
+            })}
+          </tbody>
+        </Table>
+      )}
+    </>
+  );
+}
+
+// ═══ Refunds ═══
+function RefundsTab() {
+  const [refunds, setRefunds] = useState<Refund[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actioning, setActioning] = useState<string | null>(null);
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [orderNumber, setOrderNumber] = useState('');
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [clawbackVendor, setClawbackVendor] = useState(false);
+  const [clawbackRider, setClawbackRider] = useState(false);
+
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const [payMethod, setPayMethod] = useState('BANK_TRANSFER');
+  const [payRef, setPayRef] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setRefunds(await financeApi.listRefunds());
+    } catch {
+      toast.error('Failed to load refunds');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const createRefund = async () => {
+    const value = parseFloat(amount);
+    if (!orderNumber.trim()) return toast.error('Order number is required');
+    if (isNaN(value) || value <= 0) return toast.error('Enter a valid amount');
+    if (!reason.trim()) return toast.error('Reason is required');
+
+    setCreating(true);
+    try {
+      await financeApi.createRefund(orderNumber.trim(), value, reason.trim());
+      toast.success('Refund created — awaiting approval');
+      setOrderNumber(''); setAmount(''); setReason('');
+      setShowCreate(false);
+      load();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      toast.error(error?.response?.data?.message || 'Failed to create refund');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const startApprove = (r: Refund) => {
+    setApprovingId(r.id);
+    setClawbackVendor(!!r.order?.vendorId);
+    setClawbackRider(!!r.order?.riderId);
+  };
+
+  const confirmApprove = async (id: string) => {
+    setActioning(id);
+    try {
+      await financeApi.approveRefund(id, clawbackVendor, clawbackRider);
+      toast.success('Refund approved');
+      setApprovingId(null);
+      load();
+    } catch {
+      toast.error('Failed to approve refund');
+    } finally {
+      setActioning(null);
+    }
+  };
+
+  const reject = async (id: string) => {
+    if (!confirm('Reject this refund request?')) return;
+    setActioning(id);
+    try {
+      await financeApi.rejectRefund(id, 'Rejected by admin');
+      toast.success('Refund rejected');
+      load();
+    } catch {
+      toast.error('Failed to reject refund');
+    } finally {
+      setActioning(null);
+    }
+  };
+
+  const startPay = (id: string) => {
+    setPayingId(id);
+    setPayMethod('BANK_TRANSFER');
+    setPayRef('');
+  };
+
+  const confirmPay = async (id: string) => {
+    setActioning(id);
+    try {
+      await financeApi.payRefund(id, payMethod, payRef.trim() || undefined);
+      toast.success('Refund marked paid');
+      setPayingId(null);
+      load();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      toast.error(error?.response?.data?.message || 'Failed to mark paid');
+    } finally {
+      setActioning(null);
+    }
+  };
+
+  if (loading) {
+    return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-electric" size={32} /></div>;
+  }
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h2 className="font-syne font-bold text-white text-lg">Refunds</h2>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={load}><RefreshCw size={14} /> Refresh</Button>
+          <Button variant="primary" onClick={() => setShowCreate((s) => !s)}>
+            <Receipt size={14} /> {showCreate ? 'Cancel' : 'New Refund'}
+          </Button>
+        </div>
+      </div>
+
+      {showCreate && (
+        <div className="bg-navy border border-white/[0.08] rounded-2xl p-6 mb-6">
+          <h3 className="font-syne font-bold text-white text-base mb-4">New Refund</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="block text-white/50 text-xs mb-1.5">Order Number</label>
+              <input
+                value={orderNumber}
+                onChange={(e) => setOrderNumber(e.target.value)}
+                placeholder="FLW-2026-12345"
+                className="w-full bg-white/5 border border-white/15 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-electric"
+              />
+            </div>
+            <div>
+              <label className="block text-white/50 text-xs mb-1.5">Amount (Rs.)</label>
+              <input
+                type="number"
+                min={0}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="w-full bg-white/5 border border-white/15 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-electric"
+              />
+            </div>
+            <div>
+              <label className="block text-white/50 text-xs mb-1.5">Reason</label>
+              <input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="e.g. Damaged on delivery"
+                className="w-full bg-white/5 border border-white/15 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-electric"
+              />
+            </div>
+          </div>
+          <Button variant="success" onClick={createRefund} disabled={creating}>
+            {creating ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Create Refund
+          </Button>
+        </div>
+      )}
+
+      {refunds.length === 0 ? (
+        <EmptyState icon={Receipt} title="No refunds yet" description="Refunds issued for orders will appear here." />
+      ) : (
+        <Table>
+          <thead>
+            <tr>
+              <Th>Order</Th>
+              <Th>Customer</Th>
+              <Th>Reason</Th>
+              <Th className="text-right">Amount</Th>
+              <Th>Status</Th>
+              <Th>Actions</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {refunds.map((r) => {
+              const isApproving = approvingId === r.id;
+              const isPaying = payingId === r.id;
+              return (
+                <React.Fragment key={r.id}>
+                  <tr className="hover:bg-white/[0.02]">
+                    <Td className="font-mono text-xs text-white">{r.order?.orderNumber || '—'}</Td>
+                    <Td>
+                      <div className="text-white text-sm">{r.customer?.name || 'Guest'}</div>
+                      <div className="text-[11px] text-white/60 font-mono">{r.customer?.phone || '—'}</div>
+                    </Td>
+                    <Td className="text-white/65 text-xs max-w-xs">{r.reason}</Td>
+                    <Td className="text-right font-bold text-white">{formatPrice(r.amount)}</Td>
+                    <Td><StatusBadge variant={REFUND_BADGE[r.status]}>{r.status}</StatusBadge></Td>
+                    <Td>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {r.status === 'PENDING' && !isApproving && (
+                          <>
+                            <Button size="sm" variant="success" onClick={() => startApprove(r)}>
+                              <Check size={12} /> Approve
+                            </Button>
+                            <Button size="sm" variant="danger" disabled={actioning === r.id} onClick={() => reject(r.id)}>
+                              Reject
+                            </Button>
+                          </>
+                        )}
+                        {r.status === 'APPROVED' && !isPaying && (
+                          <Button size="sm" variant="primary" onClick={() => startPay(r.id)}>
+                            <Banknote size={12} /> Mark Paid
+                          </Button>
+                        )}
+                      </div>
+                    </Td>
+                  </tr>
+                  {isApproving && (
+                    <tr className="bg-white/[0.03]">
+                      <td colSpan={6} className="px-5 py-4 border-b border-white/[0.06]">
+                        <div className="flex flex-wrap items-center gap-4">
+                          <span className="text-xs text-white/70">Deduct this refund from:</span>
+                          <label className="flex items-center gap-2 text-sm text-white/85">
+                            <input
+                              type="checkbox"
+                              disabled={!r.order?.vendorId}
+                              checked={clawbackVendor}
+                              onChange={(e) => setClawbackVendor(e.target.checked)}
+                            />
+                            Vendor{!r.order?.vendorId && <span className="text-white/40"> (no vendor on this order)</span>}
+                          </label>
+                          <label className="flex items-center gap-2 text-sm text-white/85">
+                            <input
+                              type="checkbox"
+                              disabled={!r.order?.riderId}
+                              checked={clawbackRider}
+                              onChange={(e) => setClawbackRider(e.target.checked)}
+                            />
+                            Rider{!r.order?.riderId && <span className="text-white/40"> (no rider on this order)</span>}
+                          </label>
+                          <span className="text-xs text-white/50">Leave unchecked for FlowX to absorb the cost.</span>
+                          <Button size="sm" variant="success" disabled={actioning === r.id} onClick={() => confirmApprove(r.id)}>
+                            {actioning === r.id ? <Loader2 className="animate-spin" size={12} /> : <Check size={12} />} Confirm
+                          </Button>
+                          <Button size="sm" variant="ghost" disabled={actioning === r.id} onClick={() => setApprovingId(null)}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  {isPaying && (
+                    <tr className="bg-white/[0.03]">
+                      <td colSpan={6} className="px-5 py-4 border-b border-white/[0.06]">
+                        <div className="flex flex-wrap items-end gap-3">
+                          <div>
+                            <label htmlFor={`refund-pay-method-${r.id}`} className="block text-[11px] text-white/60 uppercase tracking-wide mb-1">
+                              Payment method
+                            </label>
+                            <select
+                              id={`refund-pay-method-${r.id}`}
+                              value={payMethod}
+                              onChange={(e) => setPayMethod(e.target.value)}
+                              className="bg-navy border border-white/15 rounded-lg text-white text-sm px-3 py-2.5 focus:border-electric focus:ring-2 focus:ring-cyan2/40 outline-none"
+                            >
+                              <option value="BANK_TRANSFER" className="bg-navy">Bank Transfer</option>
+                              <option value="JAZZCASH" className="bg-navy">JazzCash</option>
+                              <option value="EASYPAISA" className="bg-navy">EasyPaisa</option>
+                              <option value="CASH" className="bg-navy">Cash</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label htmlFor={`refund-pay-ref-${r.id}`} className="block text-[11px] text-white/60 uppercase tracking-wide mb-1">
+                              Reference <span className="normal-case text-white/50">(optional)</span>
+                            </label>
+                            <input
+                              id={`refund-pay-ref-${r.id}`}
+                              value={payRef}
+                              onChange={(e) => setPayRef(e.target.value)}
+                              placeholder="e.g. TRX-1234"
+                              maxLength={64}
+                              className="w-44 bg-white/10 border border-white/15 rounded-lg text-white text-sm px-3 py-2.5 placeholder:text-white/50 focus:border-electric focus:ring-2 focus:ring-cyan2/40 outline-none"
+                            />
+                          </div>
+                          <Button size="sm" variant="success" disabled={actioning === r.id} onClick={() => confirmPay(r.id)}>
+                            {actioning === r.id ? <Loader2 className="animate-spin" size={12} /> : <Check size={12} />}
+                            Confirm refund of {formatPrice(r.amount)}
+                          </Button>
+                          <Button size="sm" variant="ghost" disabled={actioning === r.id} onClick={() => setPayingId(null)}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               );
             })}
           </tbody>

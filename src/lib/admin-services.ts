@@ -340,10 +340,53 @@ export const financeApi = {
     const { data } = await api.post(`/admin/finance/riders/settlements/${id}/pay`, { paymentMethod, paymentReference });
     return data.settlement;
   },
+
+  // ── Refunds ──
+  listRefunds: async (status?: string): Promise<Refund[]> => {
+    const { data } = await api.get('/admin/finance/refunds', { params: status ? { status } : {} });
+    return data.refunds;
+  },
+  createRefund: async (orderNumber: string, amount: number, reason: string): Promise<Refund> => {
+    const { data } = await api.post('/admin/finance/refunds', { orderNumber, amount, reason });
+    return data.refund;
+  },
+  approveRefund: async (id: string, clawbackVendor: boolean, clawbackRider: boolean): Promise<Refund> => {
+    const { data } = await api.post(`/admin/finance/refunds/${id}/approve`, { clawbackVendor, clawbackRider });
+    return data.refund;
+  },
+  rejectRefund: async (id: string, reason?: string): Promise<Refund> => {
+    const { data } = await api.post(`/admin/finance/refunds/${id}/reject`, { reason });
+    return data.refund;
+  },
+  payRefund: async (id: string, paymentMethod: string, paymentReference?: string): Promise<Refund> => {
+    const { data } = await api.post(`/admin/finance/refunds/${id}/pay`, { paymentMethod, paymentReference });
+    return data.refund;
+  },
 };
+
+interface Refund {
+  id: string;
+  orderId: string;
+  customerId: string | null;
+  amount: string;
+  reason: string;
+  status: 'PENDING' | 'APPROVED' | 'PAID' | 'REJECTED';
+  clawbackVendor: boolean;
+  clawbackRider: boolean;
+  vendorClawbackAmount: string | null;
+  riderClawbackAmount: string | null;
+  paymentMethod: string | null;
+  paymentReference: string | null;
+  rejectedReason: string | null;
+  approvedAt: string | null;
+  paidAt: string | null;
+  createdAt: string;
+  order?: { orderNumber: string; total: string; status?: string; vendorId?: string | null; riderId?: string | null };
+  customer?: { id: string; name: string; phone: string } | null;
+}
 
 export type {
   AdminStats, VendorListItem, RiderListItem, KycSubmission, AdminSettlement, UnsettledBalance,
   CommissionSettings, AdminVendorWallet, AdminRiderWallet, RiderWallet, RiderSettlement,
-  AdminRiderSettlement, UnsettledRiderBalance, AdminZone,
+  AdminRiderSettlement, UnsettledRiderBalance, AdminZone, Refund,
 };

@@ -23,3 +23,10 @@ export const SETTLEMENT_BADGE: Record<Settlement['status'], 'pending' | 'approve
   APPROVED: 'approved',
   PAID: 'paid',
 };
+
+export const REFUND_BADGE: Record<'PENDING' | 'APPROVED' | 'PAID' | 'REJECTED', 'pending' | 'approved' | 'paid' | 'rejected'> = {
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  PAID: 'paid',
+  REJECTED: 'rejected',
+};
