@@ -94,6 +94,10 @@ export const adminApi = {
     const { data } = await api.post(`/vendors/${vendorId}/reject`, { reason });
     return data.vendor;
   },
+  suspendVendor: async (vendorId: string, reason?: string) => {
+    const { data } = await api.patch(`/vendors/${vendorId}/suspend`, { reason });
+    return data as { message: string; vendor: VendorListItem };
+  },
   changeVendorZone: async (vendorId: string, zoneId: string) => {
     const { data } = await api.patch(`/vendors/${vendorId}/zone`, { zoneId });
     return data.vendor;
@@ -111,6 +115,10 @@ export const adminApi = {
   rejectRider: async (riderId: string, reason?: string) => {
     const { data } = await api.post(`/riders/${riderId}/reject`, { reason });
     return data.rider;
+  },
+  suspendRider: async (riderId: string, reason?: string) => {
+    const { data } = await api.patch(`/riders/${riderId}/suspend`, { reason });
+    return data as { message: string; rider: RiderListItem };
   },
   changeRiderZone: async (riderId: string, zoneId: string) => {
     const { data } = await api.patch(`/riders/${riderId}/zone`, { zoneId });

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Users, Loader2, RefreshCw, Check, X, MapPin, Phone, IdCard, Wallet, ShieldAlert } from 'lucide-react';
+import { Users, Loader2, RefreshCw, Check, X, MapPin, Phone, IdCard, Wallet, ShieldAlert, Ban, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminApi, VendorListItem } from '@/lib/admin-services';
 import { productsApi } from '@/lib/services';
@@ -67,6 +67,28 @@ export default function AdminVendorsPage() {
       load();
     } catch {
       toast.error('Failed to reject');
+    }
+  };
+
+  const handleSuspend = async (id: string) => {
+    const reason = prompt('Reason for suspension (optional):');
+    if (reason === null) return;
+    try {
+      const { message } = await adminApi.suspendVendor(id, reason || undefined);
+      toast.success(message);
+      load();
+    } catch {
+      toast.error('Failed to suspend vendor');
+    }
+  };
+
+  const handleReactivate = async (id: string) => {
+    try {
+      const { message } = await adminApi.suspendVendor(id);
+      toast.success(message);
+      load();
+    } catch {
+      toast.error('Failed to reactivate vendor');
     }
   };
 
@@ -221,11 +243,21 @@ export default function AdminVendorsPage() {
                       </>
                     )}
                     {v.vendorStatus === 'APPROVED' && (
-                      <Link href={`/admin/finance?tab=wallets&vendor=${v.id}`}>
-                        <Button size="sm" variant="secondary">
-                          <Wallet size={12} /> View Wallet
+                      <>
+                        <Link href={`/admin/finance?tab=wallets&vendor=${v.id}`}>
+                          <Button size="sm" variant="secondary">
+                            <Wallet size={12} /> View Wallet
+                          </Button>
+                        </Link>
+                        <Button size="sm" variant="danger" onClick={() => handleSuspend(v.id)}>
+                          <Ban size={12} /> Suspend
                         </Button>
-                      </Link>
+                      </>
+                    )}
+                    {v.vendorStatus === 'SUSPENDED' && (
+                      <Button size="sm" variant="success" onClick={() => handleReactivate(v.id)}>
+                        <RotateCcw size={12} /> Reactivate
+                      </Button>
                     )}
                   </div>
                 </Td>

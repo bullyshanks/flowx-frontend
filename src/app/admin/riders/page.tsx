@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  Bike, Loader2, RefreshCw, Check, X, ShieldAlert, Wallet, Snowflake, Save,
+  Bike, Loader2, RefreshCw, Check, X, ShieldAlert, Wallet, Snowflake, Save, Ban, RotateCcw,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminApi, RiderListItem } from '@/lib/admin-services';
@@ -71,6 +71,28 @@ export default function AdminRidersPage() {
       load();
     } catch {
       toast.error('Failed to reject');
+    }
+  };
+
+  const handleSuspend = async (id: string) => {
+    const reason = prompt('Reason for suspension (optional):');
+    if (reason === null) return;
+    try {
+      const { message } = await adminApi.suspendRider(id, reason || undefined);
+      toast.success(message);
+      load();
+    } catch {
+      toast.error('Failed to suspend rider');
+    }
+  };
+
+  const handleReactivate = async (id: string) => {
+    try {
+      const { message } = await adminApi.suspendRider(id);
+      toast.success(message);
+      load();
+    } catch {
+      toast.error('Failed to reactivate rider');
     }
   };
 
@@ -285,7 +307,15 @@ export default function AdminRidersPage() {
                         <Button size="sm" variant={r.isFrozen ? 'success' : 'danger'} onClick={() => handleToggleFreeze(r)}>
                           <Snowflake size={12} /> {r.isFrozen ? 'Unfreeze' : 'Freeze'}
                         </Button>
+                        <Button size="sm" variant="danger" onClick={() => handleSuspend(r.id)}>
+                          <Ban size={12} /> Suspend
+                        </Button>
                       </>
+                    )}
+                    {r.vendorStatus === 'SUSPENDED' && (
+                      <Button size="sm" variant="success" onClick={() => handleReactivate(r.id)}>
+                        <RotateCcw size={12} /> Reactivate
+                      </Button>
                     )}
                   </div>
                 </Td>
