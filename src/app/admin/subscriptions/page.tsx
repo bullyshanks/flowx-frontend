@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Repeat, Loader2, RefreshCw } from 'lucide-react';
+import { Repeat, Loader2, RefreshCw, Pause, Play, XCircle, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminApi } from '@/lib/admin-services';
 import {
@@ -21,11 +21,14 @@ interface Subscription {
   deliveryAddress: string;
   nextDeliveryDate?: string;
   createdAt: string;
+  lastError?: string | null;
+  lastAttemptAt?: string | null;
 }
 
 export default function AdminSubscriptionsPage() {
   const [subs, setSubs] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actingId, setActingId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -40,6 +43,24 @@ export default function AdminSubscriptionsPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const act = async (id: string, action: 'pause' | 'resume' | 'cancel') => {
+    setActingId(id);
+    try {
+      if (action === 'pause') await adminApi.pauseSubscription(id);
+      else if (action === 'resume') await adminApi.resumeSubscription(id);
+      else {
+        if (!confirm('Cancel this subscription? This cannot be undone.')) return;
+        await adminApi.cancelSubscription(id);
+      }
+      toast.success(`Subscription ${action === 'pause' ? 'paused' : action === 'resume' ? 'resumed' : 'cancelled'}`);
+      load();
+    } catch {
+      toast.error(`Failed to ${action} subscription`);
+    } finally {
+      setActingId(null);
+    }
+  };
 
   return (
     <>
@@ -75,6 +96,7 @@ export default function AdminSubscriptionsPage() {
               <Th>Status</Th>
               <Th>Next Delivery</Th>
               <Th>Started</Th>
+              <Th>Actions</Th>
             </tr>
           </thead>
           <tbody>
@@ -97,11 +119,38 @@ export default function AdminSubscriptionsPage() {
                 <Td>{s.zone.name}</Td>
                 <Td>
                   <StatusBadge variant={statusToBadge(s.status)}>{s.status}</StatusBadge>
+                  {s.lastError && (
+                    <div
+                      className="flex items-center gap-1 text-red-400 text-[11px] font-semibold mt-1.5"
+                      title={s.lastError}
+                    >
+                      <AlertTriangle size={12} /> Last run failed
+                    </div>
+                  )}
                 </Td>
                 <Td className="text-white/65 text-xs">
                   {s.nextDeliveryDate ? formatDate(s.nextDeliveryDate) : '—'}
                 </Td>
                 <Td className="text-white/55 text-xs">{formatDate(s.createdAt)}</Td>
+                <Td>
+                  <div className="flex gap-1.5">
+                    {s.status === 'ACTIVE' && (
+                      <Button size="sm" variant="secondary" disabled={actingId === s.id} onClick={() => act(s.id, 'pause')}>
+                        <Pause size={12} /> Pause
+                      </Button>
+                    )}
+                    {s.status === 'PAUSED' && (
+                      <Button size="sm" variant="success" disabled={actingId === s.id} onClick={() => act(s.id, 'resume')}>
+                        <Play size={12} /> Resume
+                      </Button>
+                    )}
+                    {s.status !== 'CANCELLED' && (
+                      <Button size="sm" variant="danger" disabled={actingId === s.id} onClick={() => act(s.id, 'cancel')}>
+                        <XCircle size={12} /> Cancel
+                      </Button>
+                    )}
+                  </div>
+                </Td>
               </tr>
             ))}
           </tbody>

@@ -156,6 +156,18 @@ export const adminApi = {
     const { data } = await api.get('/subscriptions/admin/all');
     return data.subscriptions;
   },
+  pauseSubscription: async (id: string) => {
+    const { data } = await api.post(`/subscriptions/admin/${id}/pause`);
+    return data.subscription;
+  },
+  resumeSubscription: async (id: string) => {
+    const { data } = await api.post(`/subscriptions/admin/${id}/resume`);
+    return data.subscription;
+  },
+  cancelSubscription: async (id: string) => {
+    const { data } = await api.post(`/subscriptions/admin/${id}/cancel`);
+    return data.subscription;
+  },
 };
 
 // ═══ Finance (admin) ═══
