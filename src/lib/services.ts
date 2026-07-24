@@ -4,7 +4,7 @@
 
 import api from './api';
 import type {
-  Product, Zone, Order, User,
+  Product, Zone, Order, User, Subscription,
   PlaceOrderInput, VendorRegisterInput, RiderRegisterInput,
 } from '@/types';
 
@@ -122,12 +122,24 @@ export const subscriptionsApi = {
     preferredTimeSlot?: string;
     deliveryAddress: string;
     paymentMethod: string;
-  }) => {
+  }): Promise<Subscription> => {
     const { data } = await api.post('/subscriptions', payload);
     return data.subscription;
   },
-  my: async () => {
+  my: async (): Promise<Subscription[]> => {
     const { data } = await api.get('/subscriptions/my');
     return data.subscriptions;
+  },
+  pause: async (id: string): Promise<Subscription> => {
+    const { data } = await api.post(`/subscriptions/${id}/pause`);
+    return data.subscription;
+  },
+  resume: async (id: string): Promise<Subscription> => {
+    const { data } = await api.post(`/subscriptions/${id}/resume`);
+    return data.subscription;
+  },
+  cancel: async (id: string): Promise<Subscription> => {
+    const { data } = await api.post(`/subscriptions/${id}/cancel`);
+    return data.subscription;
   },
 };

@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react';
 import { Loader2, Plus, Minus, ShoppingBag } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { productsApi, ordersApi } from '@/lib/services';
+import { productsApi, ordersApi, subscriptionsApi } from '@/lib/services';
 import { formatPrice, validatePhone } from '@/lib/utils';
 import { useCartStore } from '@/lib/cart-store';
-import type { Product, Zone, PaymentMethod } from '@/types';
+import { useAuthStore } from '@/lib/auth-store';
+import type { Product, Zone, PaymentMethod, SubscriptionFrequency } from '@/types';
 
 type Tab = 'onetime' | 'subscription';
 type OrderTab = 'quick' | 'subscribe';
@@ -28,7 +29,18 @@ export default function Products() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('COD');
   const [submitting, setSubmitting] = useState(false);
 
+  // ── Subscribe form state ──
+  const [subFrequency, setSubFrequency] = useState<SubscriptionFrequency>('WEEKLY');
+  const [subAddress, setSubAddress] = useState('');
+  const [subZoneId, setSubZoneId] = useState('');
+  const [subQty, setSubQty] = useState(3);
+  const [subPaymentMethod, setSubPaymentMethod] = useState<PaymentMethod>('COD');
+  const [subSubmitting, setSubSubmitting] = useState(false);
+
   const addItem = useCartStore((s) => s.addItem);
+  const user = useAuthStore((s) => s.user);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   // ── Load products + zones ──
   useEffect(() => {
@@ -51,11 +63,17 @@ export default function Products() {
   const selectProduct = (p: Product) => {
     setSelectedProduct(p);
     setQty(p.minQuantity);
+    setSubQty(p.minQuantity);
   };
 
   const changeQty = (delta: number) => {
     if (!selectedProduct) return;
     setQty((q) => Math.max(selectedProduct.minQuantity, Math.min(99, q + delta)));
+  };
+
+  const changeSubQty = (delta: number) => {
+    if (!selectedProduct) return;
+    setSubQty((q) => Math.max(selectedProduct.minQuantity, Math.min(99, q + delta)));
   };
 
   const total = selectedProduct ? Number(selectedProduct.price) * qty : 0;
@@ -89,6 +107,33 @@ export default function Products() {
       toast.error(error?.response?.data?.message || 'Failed to place order');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const createSubscription = async () => {
+    if (!selectedProduct) return;
+    if (!subAddress || !subZoneId) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    setSubSubmitting(true);
+    try {
+      await subscriptionsApi.create({
+        productId: selectedProduct.id,
+        zoneId: subZoneId,
+        quantity: subQty,
+        frequency: subFrequency,
+        deliveryAddress: subAddress,
+        paymentMethod: subPaymentMethod,
+      });
+      toast.success('Subscription created! Manage it from your account.');
+      setSubAddress('');
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      toast.error(error?.response?.data?.message || 'Failed to create subscription');
+    } finally {
+      setSubSubmitting(false);
     }
   };
 
@@ -332,6 +377,113 @@ export default function Products() {
                 </button>
                 <div className="text-center mt-3 text-xs text-white/40">
                   🔒 <span className="text-flowgreen">Secure</span> · Cash on delivery available
+                </div>
+              </>
+            ) : mounted && user?.role === 'CUSTOMER' ? (
+              <>
+                <div className="mb-4">
+                  <label className="field-label">Frequency</label>
+                  <div className="flex gap-2">
+                    {(['DAILY', 'WEEKLY', 'MONTHLY'] as SubscriptionFrequency[]).map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => setSubFrequency(f)}
+                        className={`flex-1 py-2 rounded-xl border text-xs font-semibold transition ${
+                          subFrequency === f
+                            ? 'border-cyan2 bg-cyan2/12 text-white'
+                            : 'border-white/15 bg-white/5 text-white/70'
+                        }`}
+                      >
+                        {f.charAt(0) + f.slice(1).toLowerCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="mb-4">
+                  <label className="field-label">Delivery Address</label>
+                  <input
+                    type="text"
+                    placeholder="House #, Street, Karachi"
+                    value={subAddress}
+                    onChange={(e) => setSubAddress(e.target.value)}
+                    className="field-dark"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="field-label">Area / Zone</label>
+                  <select
+                    value={subZoneId}
+                    onChange={(e) => setSubZoneId(e.target.value)}
+                    className="field-dark"
+                  >
+                    <option value="">Select your area</option>
+                    {zones.map((z) => (
+                      <option key={z.id} value={z.id} className="bg-navy2">
+                        {z.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="mb-4">
+                  <label className="field-label">Quantity (per delivery)</label>
+                  <div className="flex items-center gap-0">
+                    <button
+                      onClick={() => changeSubQty(-1)}
+                      className="w-10 h-10 rounded-xl bg-white/10 border border-white/12 text-white text-xl"
+                    >
+                      <Minus size={16} className="mx-auto" />
+                    </button>
+                    <div className="flex-1 text-center font-syne font-bold text-xl text-white">
+                      {subQty}
+                    </div>
+                    <button
+                      onClick={() => changeSubQty(1)}
+                      className="w-10 h-10 rounded-xl bg-white/10 border border-white/12 text-white text-xl"
+                    >
+                      <Plus size={16} className="mx-auto" />
+                    </button>
+                  </div>
+                </div>
+                <div className="mb-4">
+                  <label className="field-label">Payment Method</label>
+                  <div className="flex flex-wrap gap-2">
+                    {(['COD', 'JAZZCASH', 'EASYPAISA', 'BANK_TRANSFER'] as PaymentMethod[]).map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => setSubPaymentMethod(m)}
+                        className={`flex-1 min-w-[80px] py-2 px-2 rounded-xl border text-xs font-semibold transition ${
+                          subPaymentMethod === m
+                            ? 'border-cyan2 bg-cyan2/12 text-white'
+                            : 'border-white/15 bg-white/5 text-white/70'
+                        }`}
+                      >
+                        {m === 'BANK_TRANSFER' ? 'Bank' : m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-white/[0.04] rounded-xl p-3.5 mb-5">
+                  <div className="flex justify-between py-1">
+                    <span className="text-white font-bold">Per delivery</span>
+                    <span className="text-white font-bold text-base">
+                      {selectedProduct ? formatPrice(Number(selectedProduct.price) * subQty) : '—'}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={createSubscription}
+                  disabled={subSubmitting || !selectedProduct}
+                  className="w-full py-4 bg-gradient-to-br from-flowgreen to-flowgreen-dark rounded-2xl text-white font-syne font-bold text-[15px] flex items-center justify-center gap-2 hover:-translate-y-0.5 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {subSubmitting ? <Loader2 className="animate-spin" size={18} /> : <>♻️ Start Subscription</>}
+                </button>
+                <div className="text-center mt-3 text-xs text-white/40">
+                  Manage or cancel anytime from{' '}
+                  <a href="/account/subscriptions" className="text-cyan2 hover:underline">
+                    My Subscriptions
+                  </a>
                 </div>
               </>
             ) : (

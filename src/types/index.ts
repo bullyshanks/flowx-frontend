@@ -121,6 +121,24 @@ export interface Order {
   createdAt: string;
 }
 
+export interface Subscription {
+  id: string;
+  productId: string;
+  product: Product;
+  zoneId: string;
+  zone: Zone;
+  quantity: number;
+  frequency: SubscriptionFrequency;
+  preferredTimeSlot?: string;
+  deliveryAddress: string;
+  paymentMethod: PaymentMethod;
+  status: SubscriptionStatus;
+  startDate: string;
+  nextDeliveryDate?: string;
+  endDate?: string;
+  createdAt: string;
+}
+
 // ─── API request/response shapes ──
 
 export interface ApiResponse<T = unknown> {

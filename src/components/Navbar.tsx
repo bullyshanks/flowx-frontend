@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ShoppingCart, Menu, X } from 'lucide-react';
+import { ShoppingCart, Menu, X, Repeat, LogOut } from 'lucide-react';
 import Logo from './Logo';
 import { useCartStore } from '@/lib/cart-store';
 import { useAuthStore } from '@/lib/auth-store';
@@ -21,6 +21,7 @@ const links = [
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const cartCount = useCartStore((s) => s.count());
   const user = useAuthStore((s) => s.user);
@@ -76,7 +77,36 @@ export default function Navbar() {
             )}
           </Link>
 
-          {showUser ? (
+          {showUser && user.role === 'CUSTOMER' ? (
+            <div className="relative hidden md:block">
+              <button
+                onClick={() => setAccountMenuOpen((v) => !v)}
+                className="inline-flex bg-white/10 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-white/15 transition"
+              >
+                {user.name?.split(' ')[0]} ▾
+              </button>
+              {accountMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-[1001]" onClick={() => setAccountMenuOpen(false)} />
+                  <div className="absolute right-0 top-full mt-2 w-52 bg-navy border border-white/10 rounded-xl shadow-2xl overflow-hidden z-[1002]">
+                    <Link
+                      href="/account/subscriptions"
+                      onClick={() => setAccountMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-3 text-sm text-white/80 hover:bg-white/5 hover:text-white transition no-underline"
+                    >
+                      <Repeat size={15} /> My Subscriptions
+                    </Link>
+                    <button
+                      onClick={() => { setAccountMenuOpen(false); logout(); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-white/80 hover:bg-white/5 hover:text-white transition"
+                    >
+                      <LogOut size={15} /> Logout
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : showUser ? (
             <button
               onClick={logout}
               className="hidden md:inline-flex bg-white/10 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-white/15 transition"
