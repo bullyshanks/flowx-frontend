@@ -214,6 +214,18 @@ interface RiderSettlement {
   createdAt: string;
 }
 
+interface AdminRiderSettlement extends RiderSettlement {
+  riderId: string;
+  rider?: { id: string; name: string; phone: string };
+}
+
+interface UnsettledRiderBalance {
+  rider: { id: string; name: string; phone: string; codLiability: string; zone?: { name: string } };
+  period: { start: string; end: string };
+  totalEarning: number;
+  netPayable: number;
+}
+
 interface AdminRiderWallet {
   rider: {
     id: string; name: string; phone: string; vendorStatus: string; kycStatus: string; vehicleDetails?: string;
@@ -271,9 +283,26 @@ export const financeApi = {
     const { data } = await api.post(`/admin/finance/settlements/${id}/pay`, { paymentMethod, paymentReference });
     return data.settlement;
   },
+  pendingRiderSettlements: async (): Promise<{ unsettled: UnsettledRiderBalance[]; awaiting: AdminRiderSettlement[] }> => {
+    const { data } = await api.get('/admin/finance/riders/settlements/pending');
+    return { unsettled: data.unsettled, awaiting: data.awaiting };
+  },
+  generateRiderSettlements: async (period?: { periodStart?: string; periodEnd?: string }) => {
+    const { data } = await api.post('/admin/finance/riders/settlements/generate', period || {});
+    return { message: data.message as string, settlements: data.settlements as AdminRiderSettlement[] };
+  },
+  approveRiderSettlement: async (id: string): Promise<AdminRiderSettlement> => {
+    const { data } = await api.post(`/admin/finance/riders/settlements/${id}/approve`);
+    return data.settlement;
+  },
+  payRiderSettlement: async (id: string, paymentMethod: string, paymentReference?: string): Promise<AdminRiderSettlement> => {
+    const { data } = await api.post(`/admin/finance/riders/settlements/${id}/pay`, { paymentMethod, paymentReference });
+    return data.settlement;
+  },
 };
 
 export type {
   AdminStats, VendorListItem, RiderListItem, KycSubmission, AdminSettlement, UnsettledBalance,
   CommissionSettings, AdminVendorWallet, AdminRiderWallet, RiderWallet, RiderSettlement,
+  AdminRiderSettlement, UnsettledRiderBalance,
 };

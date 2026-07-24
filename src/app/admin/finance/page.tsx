@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import {
   adminApi, financeApi, AdminStats, VendorListItem, RiderListItem,
   AdminSettlement, UnsettledBalance, RiderSettlement,
+  AdminRiderSettlement, UnsettledRiderBalance,
 } from '@/lib/admin-services';
 import type { WalletTransaction, VendorWallet } from '@/lib/vendor-portal-services';
 import { ENTRY_TYPE_META, SETTLEMENT_BADGE } from '@/lib/finance-meta';
@@ -18,11 +19,12 @@ import {
 } from '@/components/admin/ui';
 import { formatPrice, formatDateOnly } from '@/lib/utils';
 
-type Tab = 'overview' | 'settlements' | 'wallets' | 'riders' | 'settings';
+type Tab = 'overview' | 'settlements' | 'riderSettlements' | 'wallets' | 'riders' | 'settings';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'settlements', label: 'Settlements' },
+  { id: 'riderSettlements', label: 'Rider Settlements' },
   { id: 'wallets', label: 'Vendor Wallets' },
   { id: 'riders', label: 'Rider Ledgers' },
   { id: 'settings', label: 'Settings' },
@@ -116,6 +118,7 @@ export default function AdminFinancePage() {
       <div role="tabpanel" id={`finance-panel-${tab}`} aria-labelledby={`finance-tab-${tab}`}>
         {tab === 'overview' && <OverviewTab />}
         {tab === 'settlements' && <SettlementsTab />}
+        {tab === 'riderSettlements' && <RiderSettlementsTab />}
         {tab === 'wallets' && (
           selectedVendor
             ? <VendorWalletDetail vendorId={selectedVendor} onBack={() => selectVendor(null)} />
@@ -390,6 +393,242 @@ function SettlementsTab() {
                           <Button size="sm" variant="success" disabled={actioning === s.id} onClick={() => confirmPay(s.id)}>
                             {actioning === s.id ? <Loader2 className="animate-spin" size={12} /> : <Check size={12} />}
                             Confirm {net >= 0 ? 'payout of' : 'collection of'} {formatPrice(Math.abs(net))}
+                          </Button>
+                          <Button size="sm" variant="ghost" disabled={actioning === s.id} onClick={() => setPayingId(null)}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </Table>
+      )}
+    </>
+  );
+}
+
+// ═══ Rider Settlements ═══
+function RiderSettlementsTab() {
+  const [unsettled, setUnsettled] = useState<UnsettledRiderBalance[]>([]);
+  const [awaiting, setAwaiting] = useState<AdminRiderSettlement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [actioning, setActioning] = useState<string | null>(null);
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const [payMethod, setPayMethod] = useState('BANK_TRANSFER');
+  const [payRef, setPayRef] = useState('');
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await financeApi.pendingRiderSettlements();
+      setUnsettled(data.unsettled);
+      setAwaiting(data.awaiting);
+    } catch {
+      toast.error('Failed to load settlements');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const generate = async () => {
+    setGenerating(true);
+    try {
+      const { message } = await financeApi.generateRiderSettlements();
+      toast.success(message);
+      load();
+    } catch {
+      toast.error('Failed to generate settlements');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const approve = async (id: string) => {
+    setActioning(id);
+    try {
+      await financeApi.approveRiderSettlement(id);
+      toast.success('Settlement approved');
+      setApprovingId(null);
+      load();
+    } catch {
+      toast.error('Failed to approve');
+    } finally {
+      setActioning(null);
+    }
+  };
+
+  const startPay = (id: string) => {
+    setPayingId(id);
+    setPayMethod('BANK_TRANSFER');
+    setPayRef('');
+  };
+
+  const confirmPay = async (id: string) => {
+    setActioning(id);
+    try {
+      await financeApi.payRiderSettlement(id, payMethod, payRef.trim() || undefined);
+      toast.success('Settlement marked paid');
+      setPayingId(null);
+      load();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      toast.error(error?.response?.data?.message || 'Failed to mark paid');
+    } finally {
+      setActioning(null);
+    }
+  };
+
+  if (loading) {
+    return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-electric" size={32} /></div>;
+  }
+
+  return (
+    <>
+      {/* ── Unsettled balances (current week) ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h2 className="font-syne font-bold text-white text-lg">Unsettled — Current Week</h2>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={load}><RefreshCw size={14} /> Refresh</Button>
+          <Button variant="primary" onClick={generate} disabled={generating || unsettled.length === 0}>
+            {generating ? <Loader2 className="animate-spin" size={14} /> : <FileText size={14} />}
+            Generate Weekly Settlements
+          </Button>
+        </div>
+      </div>
+
+      {unsettled.length === 0 ? (
+        <EmptyState icon={FileText} title="Nothing to settle this week" description="Delivered orders create unsettled rider earnings here." />
+      ) : (
+        <Table>
+          <thead>
+            <tr>
+              <Th>Rider</Th>
+              <Th>Zone</Th>
+              <Th className="text-right">Total Earning</Th>
+              <Th className="text-right">Net Payable</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {unsettled.map((u) => (
+              <tr key={u.rider.id} className="hover:bg-white/[0.02]">
+                <Td>
+                  <div className="font-semibold text-white">{u.rider.name}</div>
+                  <div className="text-[11px] text-white/60 font-mono">{u.rider.phone}</div>
+                </Td>
+                <Td className="text-white/65 text-xs">{u.rider.zone?.name || '—'}</Td>
+                <Td className="text-right">{formatPrice(u.totalEarning)}</Td>
+                <Td className={`text-right font-bold tabular-nums ${u.netPayable >= 0 ? 'text-flowgreen' : 'text-red-400'}`}>
+                  {u.netPayable >= 0 ? '' : '−'}{formatPrice(Math.abs(u.netPayable))}
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
+
+      {/* ── Awaiting approval / payment ── */}
+      <h2 className="font-syne font-bold text-white text-lg mt-10 mb-4">Awaiting Approval / Payment</h2>
+      {awaiting.length === 0 ? (
+        <EmptyState icon={Receipt} title="No settlements awaiting action" />
+      ) : (
+        <Table>
+          <thead>
+            <tr>
+              <Th>Rider</Th>
+              <Th>Period</Th>
+              <Th>Status</Th>
+              <Th className="text-right">Net Payable</Th>
+              <Th>Actions</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {awaiting.map((s) => {
+              const net = Number(s.netPayable);
+              const isPaying = payingId === s.id;
+              return (
+                <React.Fragment key={s.id}>
+                  <tr className="hover:bg-white/[0.02]">
+                    <Td>
+                      <div className="font-semibold text-white">{s.rider?.name}</div>
+                      <div className="text-[11px] text-white/60 font-mono">{s.rider?.phone}</div>
+                    </Td>
+                    <Td className="text-xs whitespace-nowrap">{formatDateOnly(s.periodStart)} – {formatDateOnly(s.periodEnd)}</Td>
+                    <Td><StatusBadge variant={SETTLEMENT_BADGE[s.status]}>{s.status}</StatusBadge></Td>
+                    <Td className={`text-right font-bold tabular-nums ${net >= 0 ? 'text-flowgreen' : 'text-red-400'}`}>
+                      {net >= 0 ? '' : '−'}{formatPrice(Math.abs(net))}
+                    </Td>
+                    <Td>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {s.status === 'PENDING' && approvingId !== s.id && (
+                          <Button size="sm" variant="success" onClick={() => setApprovingId(s.id)}>
+                            <Check size={12} /> Approve
+                          </Button>
+                        )}
+                        {s.status === 'PENDING' && approvingId === s.id && (
+                          <>
+                            <span className="text-xs text-white/80 whitespace-nowrap">
+                              Lock {net >= 0 ? '' : '−'}{formatPrice(Math.abs(net))} for {s.rider?.name}?
+                            </span>
+                            <Button size="sm" variant="success" disabled={actioning === s.id} onClick={() => approve(s.id)}>
+                              {actioning === s.id ? <Loader2 className="animate-spin" size={12} /> : <Check size={12} />} Confirm
+                            </Button>
+                            <Button size="sm" variant="ghost" disabled={actioning === s.id} onClick={() => setApprovingId(null)}>
+                              Cancel
+                            </Button>
+                          </>
+                        )}
+                        {s.status === 'APPROVED' && !isPaying && (
+                          <Button size="sm" variant="primary" onClick={() => startPay(s.id)}>
+                            <Banknote size={12} /> Mark Paid
+                          </Button>
+                        )}
+                      </div>
+                    </Td>
+                  </tr>
+                  {isPaying && (
+                    <tr className="bg-white/[0.03]">
+                      <td colSpan={5} className="px-5 py-4 border-b border-white/[0.06]">
+                        <div className="flex flex-wrap items-end gap-3">
+                          <div>
+                            <label htmlFor={`rider-pay-method-${s.id}`} className="block text-[11px] text-white/60 uppercase tracking-wide mb-1">
+                              Payment method
+                            </label>
+                            <select
+                              id={`rider-pay-method-${s.id}`}
+                              value={payMethod}
+                              onChange={(e) => setPayMethod(e.target.value)}
+                              className="bg-navy border border-white/15 rounded-lg text-white text-sm px-3 py-2.5 focus:border-electric focus:ring-2 focus:ring-cyan2/40 outline-none"
+                            >
+                              <option value="BANK_TRANSFER" className="bg-navy">Bank Transfer</option>
+                              <option value="JAZZCASH" className="bg-navy">JazzCash</option>
+                              <option value="EASYPAISA" className="bg-navy">EasyPaisa</option>
+                              <option value="CASH" className="bg-navy">Cash</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label htmlFor={`rider-pay-ref-${s.id}`} className="block text-[11px] text-white/60 uppercase tracking-wide mb-1">
+                              Reference <span className="normal-case text-white/50">(optional)</span>
+                            </label>
+                            <input
+                              id={`rider-pay-ref-${s.id}`}
+                              value={payRef}
+                              onChange={(e) => setPayRef(e.target.value)}
+                              placeholder="e.g. TRX-1234"
+                              maxLength={64}
+                              className="w-44 bg-white/10 border border-white/15 rounded-lg text-white text-sm px-3 py-2.5 placeholder:text-white/50 focus:border-electric focus:ring-2 focus:ring-cyan2/40 outline-none"
+                            />
+                          </div>
+                          <Button size="sm" variant="success" disabled={actioning === s.id} onClick={() => confirmPay(s.id)}>
+                            {actioning === s.id ? <Loader2 className="animate-spin" size={12} /> : <Check size={12} />}
+                            Confirm payout of {formatPrice(Math.abs(net))}
                           </Button>
                           <Button size="sm" variant="ghost" disabled={actioning === s.id} onClick={() => setPayingId(null)}>
                             Cancel
