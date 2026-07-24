@@ -96,6 +96,10 @@ export const authApi = {
     const { data } = await api.get('/auth/me');
     return data.user;
   },
+  updateMe: async (payload: { name?: string; email?: string | null; defaultAddress?: string | null }): Promise<User> => {
+    const { data } = await api.patch('/auth/me', payload);
+    return data.user;
+  },
   submitKyc: async (payload: { cnicFront: string; cnicBack: string; selfieUrl: string }) => {
     const { data } = await api.post('/auth/kyc', payload);
     return data as { success: boolean; message: string; user: { kycStatus: string } };
