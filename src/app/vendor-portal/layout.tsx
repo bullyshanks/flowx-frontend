@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
-  LayoutDashboard, Package, Wallet, User, LogOut, Loader2,
+  LayoutDashboard, Package, Wallet, User, LogOut, Loader2, Droplet,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/lib/auth-store';
@@ -15,6 +15,7 @@ import type { User as UserType } from '@/types';
 const NAV_ITEMS = [
   { href: '/vendor-portal/dashboard', label: 'Home', icon: LayoutDashboard },
   { href: '/vendor-portal/orders', label: 'Orders', icon: Package },
+  { href: '/vendor-portal/products', label: 'Products', icon: Droplet },
   { href: '/vendor-portal/wallet', label: 'Wallet', icon: Wallet },
   { href: '/vendor-portal/profile', label: 'Profile', icon: User },
 ];
@@ -163,7 +164,7 @@ export default function VendorPortalLayout({ children }: { children: React.React
       <main className="px-5 lg:px-10 py-6 lg:py-10">{children}</main>
 
       {/* ── Mobile bottom nav ── */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-navy border-t border-white/[0.08] grid grid-cols-4">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-navy border-t border-white/[0.08] grid grid-cols-5">
         {NAV_ITEMS.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + '/');
           return (

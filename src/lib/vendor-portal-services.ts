@@ -94,6 +94,28 @@ export const vendorPortalApi = {
     const { data } = await api.patch('/vendors/me/storefront', fields);
     return data.vendor as { id: string; isOpen: boolean; stockStatus: boolean };
   },
+
+  // My product catalog — own price/stock overrides
+  myProducts: async (): Promise<VendorProductListing[]> => {
+    const { data } = await api.get('/vendors/me/products');
+    return data.products;
+  },
+  updateMyProduct: async (productId: string, fields: { price?: number | null; inStock?: boolean }) => {
+    const { data } = await api.patch(`/vendors/me/products/${productId}`, fields);
+    return data.product as { productId: string; price: string | null; inStock: boolean };
+  },
 };
 
-export type { VendorStats, VendorWallet, WalletTransaction, Settlement };
+interface VendorProductListing {
+  id: string;
+  name: string;
+  unit: string;
+  minQuantity: number;
+  imageUrl: string | null;
+  catalogPrice: string;
+  price: string;
+  hasOverridePrice: boolean;
+  inStock: boolean;
+}
+
+export type { VendorStats, VendorWallet, WalletTransaction, Settlement, VendorProductListing };
