@@ -168,7 +168,31 @@ export const adminApi = {
     const { data } = await api.post(`/subscriptions/admin/${id}/cancel`);
     return data.subscription;
   },
+
+  // ── Zones ──
+  listZonesAdmin: async (): Promise<AdminZone[]> => {
+    const { data } = await api.get('/products/zones/admin/all');
+    return data.zones;
+  },
+  createZone: async (fields: { name: string; city?: string }): Promise<AdminZone> => {
+    const { data } = await api.post('/products/zones', fields);
+    return data.zone;
+  },
+  updateZone: async (id: string, fields: { name?: string; city?: string; isActive?: boolean }): Promise<AdminZone> => {
+    const { data } = await api.patch(`/products/zones/${id}`, fields);
+    return data.zone;
+  },
 };
+
+interface AdminZone {
+  id: string;
+  name: string;
+  city: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count: { users: number; orders: number; subscriptions: number };
+}
 
 // ═══ Finance (admin) ═══
 
@@ -316,5 +340,5 @@ export const financeApi = {
 export type {
   AdminStats, VendorListItem, RiderListItem, KycSubmission, AdminSettlement, UnsettledBalance,
   CommissionSettings, AdminVendorWallet, AdminRiderWallet, RiderWallet, RiderSettlement,
-  AdminRiderSettlement, UnsettledRiderBalance,
+  AdminRiderSettlement, UnsettledRiderBalance, AdminZone,
 };
