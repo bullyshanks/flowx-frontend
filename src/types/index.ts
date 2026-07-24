@@ -118,6 +118,15 @@ export interface Order {
   status: OrderStatus;
   items: OrderItem[];
   statusHistory: OrderStatusLog[];
+  refunds?: OrderRefund[];
+  createdAt: string;
+}
+
+export interface OrderRefund {
+  amount: number;
+  status: 'PENDING' | 'APPROVED' | 'PAID';
+  reason: string;
+  paidAt?: string | null;
   createdAt: string;
 }
 

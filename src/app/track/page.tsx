@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, Loader2, Package, CheckCircle2, Truck, Home } from 'lucide-react';
+import { Search, Loader2, Package, CheckCircle2, Truck, Home, Banknote } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Navbar from '@/components/Navbar';
 import { Footer } from '@/components/CTAFooter';
@@ -175,6 +175,31 @@ export default function TrackPage() {
                     </div>
                   ))}
                 </div>
+
+                {order.refunds && order.refunds.length > 0 && (
+                  <div className="border-t border-white/10 pt-4 mt-4 space-y-2.5">
+                    <div className="text-white/50 text-xs mb-1 uppercase tracking-wide">Refund</div>
+                    {order.refunds.map((r, i) => (
+                      <div
+                        key={i}
+                        className={`rounded-xl p-3.5 flex items-start gap-3 ${
+                          r.status === 'PAID' ? 'bg-flowgreen/10 border border-flowgreen/25' : 'bg-amber-500/10 border border-amber-500/25'
+                        }`}
+                      >
+                        <Banknote size={16} className={r.status === 'PAID' ? 'text-flowgreen mt-0.5' : 'text-amber-400 mt-0.5'} />
+                        <div>
+                          <div className={`font-semibold text-sm ${r.status === 'PAID' ? 'text-flowgreen' : 'text-amber-400'}`}>
+                            {r.status === 'PAID' ? `${formatPrice(r.amount)} refunded` : `${formatPrice(r.amount)} refund ${r.status.toLowerCase()}`}
+                          </div>
+                          <div className="text-xs text-white/50 mt-0.5">{r.reason}</div>
+                          {r.status === 'PAID' && r.paidAt && (
+                            <div className="text-[11px] text-white/40 mt-1">Paid {formatDate(r.paidAt)}</div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-center py-6 text-white/45">
