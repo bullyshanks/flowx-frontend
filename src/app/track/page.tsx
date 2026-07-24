@@ -87,9 +87,16 @@ export default function TrackPage() {
             </div>
 
             {order ? (
-              <div className="bg-flowgreen/10 border border-flowgreen/25 rounded-2xl p-6 text-left">
+              <div className={`rounded-2xl p-6 text-left ${
+                order.status === 'CANCELLED'
+                  ? 'bg-red-500/10 border border-red-500/25'
+                  : 'bg-flowgreen/10 border border-flowgreen/25'
+              }`}>
                 <div className="flex items-center gap-3 mb-5">
-                  <div className="w-3 h-3 bg-flowgreen rounded-full pulse-dot" style={{ boxShadow: '0 0 0 4px rgba(34,197,94,0.2)' }} />
+                  <div
+                    className={`w-3 h-3 rounded-full ${order.status === 'CANCELLED' ? 'bg-red-500' : 'bg-flowgreen pulse-dot'}`}
+                    style={order.status !== 'CANCELLED' ? { boxShadow: '0 0 0 4px rgba(34,197,94,0.2)' } : undefined}
+                  />
                   <div>
                     <div className="font-syne font-bold text-lg text-white">
                       Order #{order.orderNumber}
@@ -100,6 +107,16 @@ export default function TrackPage() {
                   </div>
                 </div>
 
+                {order.status === 'CANCELLED' ? (
+                  <div className="mb-6 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-red-500 text-white">
+                      <Package size={14} />
+                    </div>
+                    <div className="font-semibold text-sm text-red-400">
+                      {STATUS_LABEL.CANCELLED} — this order will not be delivered
+                    </div>
+                  </div>
+                ) : (
                 <div className="space-y-3 mb-6">
                   {STATUS_FLOW.map((status, i) => {
                     const done = i < currentStep;
@@ -130,9 +147,14 @@ export default function TrackPage() {
                           >
                             {STATUS_LABEL[status]}
                           </div>
-                          {active && order.vendor && (
+                          {active && status !== 'OUT_FOR_DELIVERY' && order.vendor && (
                             <div className="text-xs text-white/50 mt-0.5">
                               Vendor: {order.vendor.name} · {order.vendor.phone}
+                            </div>
+                          )}
+                          {active && status === 'OUT_FOR_DELIVERY' && order.rider && (
+                            <div className="text-xs text-white/50 mt-0.5">
+                              Rider: {order.rider.name} · {order.rider.phone}
                             </div>
                           )}
                         </div>
@@ -140,6 +162,7 @@ export default function TrackPage() {
                     );
                   })}
                 </div>
+                )}
 
                 <div className="border-t border-white/10 pt-4">
                   <div className="text-white/50 text-xs mb-2 uppercase tracking-wide">Items</div>
