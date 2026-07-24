@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import {
-  Users, Truck, Clock, Package, ShoppingBag, Repeat, DollarSign, TrendingUp, Loader2,
+  Users, Truck, Clock, Package, ShoppingBag, Repeat, DollarSign, TrendingUp, Loader2, Bike,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminApi, AdminStats } from '@/lib/admin-services';
@@ -71,7 +71,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* ── User stats ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-5">
         <StatCard
           label="Customers"
           value={stats.users.customers}
@@ -92,6 +92,23 @@ export default function AdminDashboardPage() {
           sublabel={stats.users.pendingVendors > 0 ? '⚠️ Needs your review' : 'All caught up'}
           icon={Clock}
           color={stats.users.pendingVendors > 0 ? 'amber' : 'green'}
+        />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
+        <div className="hidden sm:block" />
+        <StatCard
+          label="Approved Riders"
+          value={stats.users.riders}
+          sublabel="Active delivery riders"
+          icon={Bike}
+          color="green"
+        />
+        <StatCard
+          label="Pending Riders"
+          value={stats.users.pendingRiders}
+          sublabel={stats.users.pendingRiders > 0 ? '⚠️ Needs your review' : 'All caught up'}
+          icon={Clock}
+          color={stats.users.pendingRiders > 0 ? 'amber' : 'green'}
         />
       </div>
 

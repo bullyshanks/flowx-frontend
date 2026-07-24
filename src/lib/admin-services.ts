@@ -7,7 +7,11 @@ import api from './api';
 import type { Order, User } from '@/types';
 
 interface AdminStats {
-  users: { customers: number; vendors: number; pendingVendors: number };
+  users: {
+    customers: number;
+    vendors: number; pendingVendors: number;
+    riders: number; pendingRiders: number;
+  };
   orders: { today: number; month: number; pending: number };
   subscriptions: { active: number };
   revenue: { total: number; month: number };
@@ -17,6 +21,7 @@ interface AdminStats {
     outstandingCodLiability: number;
     commissionRevenue: number;
     frozenVendors: number;
+    frozenRiders: number;
   };
 }
 

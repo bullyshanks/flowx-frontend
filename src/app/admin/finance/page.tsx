@@ -167,6 +167,7 @@ function OverviewTab() {
       <StatCard label="Outstanding COD Liability" value={formatPrice(f.outstandingCodLiability)} sublabel="Commission vendors currently owe FlowX" icon={AlertTriangle} color="purple" />
       <StatCard label="Commission Revenue" value={formatPrice(f.commissionRevenue)} sublabel="Total commission earned to date" icon={Percent} color="green" />
       <StatCard label="Frozen Vendors" value={f.frozenVendors} sublabel="Vendors with financial activity paused" icon={Snowflake} color="cyan" />
+      <StatCard label="Frozen Riders" value={f.frozenRiders} sublabel="Riders with financial activity paused" icon={Snowflake} color="cyan" />
     </div>
   );
 }
