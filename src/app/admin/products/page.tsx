@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ShoppingCart, Loader2, RefreshCw, Edit3, Save, X } from 'lucide-react';
+import { ShoppingCart, Loader2, RefreshCw, Edit3, Save, X, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { productsApi } from '@/lib/services';
@@ -12,6 +12,8 @@ import {
 import { formatPrice } from '@/lib/utils';
 import type { Product } from '@/types';
 
+const EMPTY_FORM = { name: '', slug: '', description: '', price: '', unit: '', minQuantity: '1' };
+
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,6 +21,10 @@ export default function AdminProductsPage() {
   const [editPrice, setEditPrice] = useState('');
   const [editCommission, setEditCommission] = useState('');   // '' = use global default
   const [editRiderRate, setEditRiderRate] = useState('');
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [creating, setCreating] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -68,6 +74,39 @@ export default function AdminProductsPage() {
     }
   };
 
+  const slugify = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+  const createProduct = async () => {
+    const name = form.name.trim();
+    const slug = form.slug.trim() || slugify(name);
+    const price = parseFloat(form.price);
+    const unit = form.unit.trim();
+    const minQuantity = parseInt(form.minQuantity, 10);
+
+    if (!name) return toast.error('Name is required');
+    if (!slug) return toast.error('Slug is required');
+    if (isNaN(price) || price < 0) return toast.error('Enter a valid price');
+    if (!unit) return toast.error('Unit is required (e.g. bottle, tank, set of 6)');
+    if (!Number.isInteger(minQuantity) || minQuantity < 1) return toast.error('Min quantity must be an integer >= 1');
+
+    setCreating(true);
+    try {
+      await api.post('/products', {
+        name, slug, price, unit, minQuantity,
+        description: form.description.trim() || null,
+      });
+      toast.success('Product created');
+      setForm(EMPTY_FORM);
+      setShowCreate(false);
+      load();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      toast.error(error?.response?.data?.message || 'Failed to create product');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const toggleActive = async (p: Product) => {
     try {
       if (p.isActive) {
@@ -89,11 +128,82 @@ export default function AdminProductsPage() {
         title="Products"
         subtitle="Update prices and availability"
         actions={
-          <Button variant="secondary" onClick={load}>
-            <RefreshCw size={14} /> Refresh
-          </Button>
+          <>
+            <Button variant="secondary" onClick={() => setShowCreate((s) => !s)}>
+              <Plus size={14} /> {showCreate ? 'Cancel' : 'New Product'}
+            </Button>
+            <Button variant="secondary" onClick={load}>
+              <RefreshCw size={14} /> Refresh
+            </Button>
+          </>
         }
       />
+
+      {showCreate && (
+        <div className="bg-navy border border-white/[0.08] rounded-2xl p-6 mb-6">
+          <h3 className="font-syne font-bold text-white text-base mb-4">New Product</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="block text-white/50 text-xs mb-1.5">Name</label>
+              <input
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. 10L Bottle"
+                className="w-full bg-white/5 border border-white/15 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-electric"
+              />
+            </div>
+            <div>
+              <label className="block text-white/50 text-xs mb-1.5">Slug (optional — auto-generated)</label>
+              <input
+                value={form.slug}
+                onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))}
+                placeholder="10l-bottle"
+                className="w-full bg-white/5 border border-white/15 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-electric"
+              />
+            </div>
+            <div>
+              <label className="block text-white/50 text-xs mb-1.5">Unit</label>
+              <input
+                value={form.unit}
+                onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
+                placeholder="bottle, tank, set of 6..."
+                className="w-full bg-white/5 border border-white/15 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-electric"
+              />
+            </div>
+            <div>
+              <label className="block text-white/50 text-xs mb-1.5">Price (Rs.)</label>
+              <input
+                type="number"
+                min={0}
+                value={form.price}
+                onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+                className="w-full bg-white/5 border border-white/15 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-electric"
+              />
+            </div>
+            <div>
+              <label className="block text-white/50 text-xs mb-1.5">Min Order Quantity</label>
+              <input
+                type="number"
+                min={1}
+                value={form.minQuantity}
+                onChange={(e) => setForm((f) => ({ ...f, minQuantity: e.target.value }))}
+                className="w-full bg-white/5 border border-white/15 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-electric"
+              />
+            </div>
+            <div>
+              <label className="block text-white/50 text-xs mb-1.5">Description (optional)</label>
+              <input
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                className="w-full bg-white/5 border border-white/15 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-electric"
+              />
+            </div>
+          </div>
+          <Button variant="success" onClick={createProduct} disabled={creating}>
+            {creating ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Create Product
+          </Button>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-20">
