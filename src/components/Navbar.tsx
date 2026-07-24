@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ShoppingCart, Menu, X, Repeat, LogOut } from 'lucide-react';
+import { ShoppingCart, Menu, X, Repeat, LogOut, Package } from 'lucide-react';
 import Logo from './Logo';
 import { useCartStore } from '@/lib/cart-store';
 import { useAuthStore } from '@/lib/auth-store';
@@ -89,6 +89,13 @@ export default function Navbar() {
                 <>
                   <div className="fixed inset-0 z-[1001]" onClick={() => setAccountMenuOpen(false)} />
                   <div className="absolute right-0 top-full mt-2 w-52 bg-navy border border-white/10 rounded-xl shadow-2xl overflow-hidden z-[1002]">
+                    <Link
+                      href="/account/orders"
+                      onClick={() => setAccountMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-3 text-sm text-white/80 hover:bg-white/5 hover:text-white transition no-underline"
+                    >
+                      <Package size={15} /> My Orders
+                    </Link>
                     <Link
                       href="/account/subscriptions"
                       onClick={() => setAccountMenuOpen(false)}

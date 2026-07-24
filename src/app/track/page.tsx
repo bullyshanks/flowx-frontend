@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Search, Loader2, Package, CheckCircle2, Truck, Home, Banknote } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Navbar from '@/components/Navbar';
@@ -27,18 +28,28 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
 };
 
 export default function TrackPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-navy" />}>
+      <TrackPageInner />
+    </Suspense>
+  );
+}
+
+function TrackPageInner() {
+  const searchParams = useSearchParams();
   const [orderNumber, setOrderNumber] = useState('');
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const track = async () => {
-    if (!orderNumber.trim()) {
+  const track = async (numberOverride?: string) => {
+    const target = (numberOverride ?? orderNumber).trim();
+    if (!target) {
       toast.error('Please enter your order ID');
       return;
     }
     setLoading(true);
     try {
-      const o = await ordersApi.track(orderNumber.trim());
+      const o = await ordersApi.track(target);
       setOrder(o);
     } catch {
       toast.error('Order not found. Please check your order ID.');
@@ -47,6 +58,16 @@ export default function TrackPage() {
       setLoading(false);
     }
   };
+
+  // Deep link support: /track?order=<orderNumber> (e.g. from the account order history list)
+  useEffect(() => {
+    const fromQuery = searchParams.get('order');
+    if (fromQuery) {
+      setOrderNumber(fromQuery);
+      track(fromQuery);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const currentStep = order ? STATUS_FLOW.indexOf(order.status) : -1;
 
@@ -77,7 +98,7 @@ export default function TrackPage() {
                 className="flex-1 px-5 py-4 bg-white/8 border border-white/15 rounded-2xl text-white outline-none focus:border-cyan2"
               />
               <button
-                onClick={track}
+                onClick={() => track()}
                 disabled={loading}
                 className="px-6 py-4 bg-gradient-to-br from-cyan2 to-electric rounded-2xl text-white font-bold flex items-center gap-2 hover:-translate-y-0.5 transition disabled:opacity-50"
               >
