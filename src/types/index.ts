@@ -112,6 +112,7 @@ export interface Order {
   riderId?: string | null;
   riderAcceptDeadline?: string | null;
   subtotal: number;
+  discountAmount?: number;
   total: number;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;

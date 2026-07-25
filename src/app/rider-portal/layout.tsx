@@ -9,6 +9,7 @@ import {
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/lib/auth-store';
 import { authApi } from '@/lib/services';
+import { registerPush } from '@/lib/push';
 import KycGate from '@/components/KycGate';
 import type { User as UserType } from '@/types';
 
@@ -50,6 +51,10 @@ export default function RiderPortalLayout({ children }: { children: React.ReactN
     }
     checkAuth();
   }, [user, router]);
+
+  useEffect(() => {
+    if (authChecked) registerPush();
+  }, [authChecked]);
 
   // Live profile so KYC status reflects admin decisions made since login
   const loadProfile = () => {

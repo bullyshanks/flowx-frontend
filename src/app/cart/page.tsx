@@ -11,7 +11,7 @@ import Navbar from '@/components/Navbar';
 import { Footer } from '@/components/CTAFooter';
 import { useCartStore } from '@/lib/cart-store';
 import { useAuthStore } from '@/lib/auth-store';
-import { productsApi, ordersApi, authApi } from '@/lib/services';
+import { productsApi, ordersApi, authApi, referralApi } from '@/lib/services';
 import { formatPrice, validatePhone } from '@/lib/utils';
 import type { Zone, PaymentMethod } from '@/types';
 
@@ -32,6 +32,7 @@ export default function CartPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('COD');
   const [submitting, setSubmitting] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -51,7 +52,15 @@ export default function CartPage() {
         if (full.zone?.id) setZoneId(full.zone.id);
       })
       .catch(() => {});
+    referralApi.get().then((r) => setWalletBalance(Number(r.walletBalance))).catch(() => {});
   }, [isLoggedInCustomer, user]);
+
+  // Best-effort estimate only — a first-order referral discount also exists
+  // server-side but isn't predicted here (would need an extra round trip to
+  // know "is this truly my first order"); the actual amount always comes
+  // back correctly on the order response regardless of what's shown here.
+  const estimatedDiscount = isLoggedInCustomer ? Math.min(walletBalance, subtotal) : 0;
+  const estimatedTotal = subtotal - estimatedDiscount;
 
   const placeOrder = async () => {
     if (items.length === 0) {
@@ -80,7 +89,12 @@ export default function CartPage() {
         paymentMethod,
         ...(isLoggedInCustomer ? {} : { guestName: name, guestPhone: phone }),
       });
-      toast.success(`Order placed! Your order #: ${order.orderNumber}`);
+      const discount = Number(order.discountAmount || 0);
+      toast.success(
+        discount > 0
+          ? `Order placed! Rs. ${discount} discount applied. Your order #: ${order.orderNumber}`
+          : `Order placed! Your order #: ${order.orderNumber}`
+      );
       clear();
       if (!isLoggedInCustomer) { setName(''); setPhone(''); setAddress(''); }
     } catch (err: unknown) {
@@ -268,11 +282,22 @@ export default function CartPage() {
                     <span>Delivery</span>
                     <span className="text-flowgreen font-semibold">FREE</span>
                   </div>
+                  {estimatedDiscount > 0 && (
+                    <div className="flex justify-between py-1 text-sm">
+                      <span className="text-flowgreen">Wallet Credit Applied</span>
+                      <span className="text-flowgreen font-semibold">-{formatPrice(estimatedDiscount)}</span>
+                    </div>
+                  )}
                   <div className="h-px bg-white/8 my-2" />
                   <div className="flex justify-between py-1">
                     <span className="text-white font-bold">Total</span>
-                    <span className="text-white font-bold text-lg">{formatPrice(subtotal)}</span>
+                    <span className="text-white font-bold text-lg">{formatPrice(estimatedTotal)}</span>
                   </div>
+                  {isLoggedInCustomer && estimatedDiscount === 0 && (
+                    <div className="text-[11px] text-white/40 mt-1">
+                      New here? A referred first order gets Rs. 50 off automatically at checkout.
+                    </div>
+                  )}
                 </div>
 
                 <button

@@ -9,6 +9,7 @@ import {
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/lib/auth-store';
 import { authApi } from '@/lib/services';
+import { registerPush } from '@/lib/push';
 import KycGate from '@/components/KycGate';
 import type { User as UserType } from '@/types';
 
@@ -52,6 +53,10 @@ export default function VendorPortalLayout({ children }: { children: React.React
     }
     checkAuth();
   }, [user, router]);
+
+  useEffect(() => {
+    if (authChecked) registerPush();
+  }, [authChecked]);
 
   // ── Fetch a live profile so KYC status reflects admin decisions made
   // since login, not the JWT-time snapshot cached in the auth store. ──

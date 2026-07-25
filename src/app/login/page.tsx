@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Phone, Lock, Loader2, KeyRound } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -21,6 +21,15 @@ export default function LoginPage() {
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [referralCode, setReferralCode] = useState('');
+
+  // Deep link support: /login?ref=<code> (e.g. from a shared referral link)
+  // — read directly off the URL rather than useSearchParams to avoid needing
+  // a Suspense boundary just for this.
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get('ref');
+    if (ref) setReferralCode(ref);
+  }, []);
 
   const sendOtp = async () => {
     if (!validatePhone(phone)) {
@@ -47,7 +56,7 @@ export default function LoginPage() {
     }
     setLoading(true);
     try {
-      const data = await authApi.verifyOtp(phone, code);
+      const data = await authApi.verifyOtp(phone, code, 'login', referralCode || undefined);
       setAuth(data.token, data.user);
       localStorage.setItem('flowx_token', data.token);
       toast.success('Logged in!');
@@ -131,6 +140,11 @@ export default function LoginPage() {
                     className="field-dark pl-11"
                   />
                 </div>
+                {referralCode && (
+                  <div className="mb-4 px-4 py-2.5 bg-flowgreen/10 border border-flowgreen/25 rounded-xl text-flowgreen text-xs font-semibold">
+                    🎁 Referral code applied — new customers get Rs. 50 off their first order!
+                  </div>
+                )}
                 <button
                   onClick={sendOtp}
                   disabled={loading}

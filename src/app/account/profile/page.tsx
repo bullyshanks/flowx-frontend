@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Save, User as UserIcon } from 'lucide-react';
+import { Loader2, Save, User as UserIcon, Gift, Copy, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Navbar from '@/components/Navbar';
 import { Footer } from '@/components/CTAFooter';
 import { useAuthStore } from '@/lib/auth-store';
-import { authApi } from '@/lib/services';
+import { authApi, referralApi, type ReferralInfo } from '@/lib/services';
+import { formatPrice } from '@/lib/utils';
 
 export default function AccountProfilePage() {
   const router = useRouter();
@@ -20,6 +21,9 @@ export default function AccountProfilePage() {
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
+
+  const [referral, setReferral] = useState<ReferralInfo | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -53,7 +57,21 @@ export default function AccountProfilePage() {
       })
       .catch(() => toast.error('Failed to load profile'))
       .finally(() => setLoading(false));
+    referralApi.get().then(setReferral).catch(() => {});
   }, [authChecked]);
+
+  const copyReferralLink = async () => {
+    if (!referral) return;
+    const link = `${window.location.origin}/?ref=${referral.referralCode}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      toast.success('Referral link copied!');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('Failed to copy — try selecting the code manually');
+    }
+  };
 
   const save = async () => {
     if (!name.trim()) return toast.error('Name is required');
@@ -144,6 +162,42 @@ export default function AccountProfilePage() {
               >
                 {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />} Save Changes
               </button>
+            </div>
+          )}
+
+          {referral && (
+            <div className="bg-navy rounded-2xl p-6 mt-6">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Gift size={18} className="text-flowgreen" />
+                <h2 className="font-syne font-bold text-white text-base">Refer a Friend</h2>
+              </div>
+              <p className="text-white/50 text-[13px] mb-4">
+                Share your code — your friend gets Rs. 50 off their first order, and you get Rs. 50 once it&apos;s delivered.
+              </p>
+
+              <div className="flex items-center gap-2 mb-4">
+                <div className="flex-1 px-4 py-3 bg-white/[0.06] border border-white/10 rounded-xl font-mono font-bold text-flowgreen text-sm tracking-wide">
+                  {referral.referralCode}
+                </div>
+                <button
+                  onClick={copyReferralLink}
+                  className="flex items-center gap-1.5 px-4 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white text-sm font-semibold transition"
+                >
+                  {copied ? <Check size={16} className="text-flowgreen" /> : <Copy size={16} />}
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between border-t border-white/10 pt-4">
+                <div>
+                  <div className="text-white/50 text-xs">Wallet Balance</div>
+                  <div className="text-white font-syne font-extrabold text-xl">{formatPrice(referral.walletBalance)}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-white/50 text-xs">Friends Referred</div>
+                  <div className="text-white font-syne font-extrabold text-xl">{referral.referralsCount}</div>
+                </div>
+              </div>
             </div>
           )}
         </div>

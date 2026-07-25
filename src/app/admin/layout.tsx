@@ -10,6 +10,7 @@ import {
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/lib/auth-store';
 import { adminApi } from '@/lib/admin-services';
+import { registerPush } from '@/lib/push';
 
 const NAV_ITEMS = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -62,6 +63,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     adminApi.listPendingKyc()
       .then((list) => setPendingKycCount(list.length))
       .catch(() => {});
+  }, [authChecked]);
+
+  useEffect(() => {
+    if (authChecked) registerPush();
   }, [authChecked]);
 
   const handleLogout = () => {

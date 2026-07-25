@@ -84,8 +84,8 @@ export const authApi = {
     const { data } = await api.post('/auth/otp/send', { phone, purpose });
     return data;
   },
-  verifyOtp: async (phone: string, code: string, purpose = 'login') => {
-    const { data } = await api.post('/auth/otp/verify', { phone, code, purpose });
+  verifyOtp: async (phone: string, code: string, purpose = 'login', referralCode?: string) => {
+    const { data } = await api.post('/auth/otp/verify', { phone, code, purpose, referralCode });
     return data as { success: boolean; token: string; user: User };
   },
   login: async (phone: string, password: string) => {
@@ -145,5 +145,32 @@ export const subscriptionsApi = {
   cancel: async (id: string): Promise<Subscription> => {
     const { data } = await api.post(`/subscriptions/${id}/cancel`);
     return data.subscription;
+  },
+};
+
+// ─── Push Notifications ──
+
+export const notificationsApi = {
+  subscribe: async (subscription: { endpoint: string; keys: { p256dh: string; auth: string } }): Promise<void> => {
+    await api.post('/notifications/subscribe', subscription);
+  },
+  unsubscribe: async (endpoint: string): Promise<void> => {
+    await api.delete('/notifications/subscribe', { data: { endpoint } });
+  },
+};
+
+// ─── Referral ──
+
+export interface ReferralInfo {
+  referralCode: string;
+  walletBalance: number;
+  referralsCount: number;
+  creditedCount: number;
+}
+
+export const referralApi = {
+  get: async (): Promise<ReferralInfo> => {
+    const { data } = await api.get('/customer/referral');
+    return data;
   },
 };
