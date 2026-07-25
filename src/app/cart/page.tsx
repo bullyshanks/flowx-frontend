@@ -10,7 +10,8 @@ import toast from 'react-hot-toast';
 import Navbar from '@/components/Navbar';
 import { Footer } from '@/components/CTAFooter';
 import { useCartStore } from '@/lib/cart-store';
-import { productsApi, ordersApi } from '@/lib/services';
+import { useAuthStore } from '@/lib/auth-store';
+import { productsApi, ordersApi, authApi } from '@/lib/services';
 import { formatPrice, validatePhone } from '@/lib/utils';
 import type { Zone, PaymentMethod } from '@/types';
 
@@ -20,6 +21,8 @@ export default function CartPage() {
   const removeItem = useCartStore((s) => s.removeItem);
   const clear = useCartStore((s) => s.clear);
   const subtotal = useCartStore((s) => s.subtotal());
+  const user = useAuthStore((s) => s.user);
+  const isLoggedInCustomer = !!user && user.role === 'CUSTOMER';
 
   const [zones, setZones] = useState<Zone[]>([]);
   const [name, setName] = useState('');
@@ -35,16 +38,35 @@ export default function CartPage() {
     productsApi.getZones().then(setZones).catch(() => {});
   }, []);
 
+  // Pre-fill from the account instead of making a logged-in customer retype
+  // their own name/phone/address every time. The login-time snapshot in the
+  // auth store doesn't carry defaultAddress/zone, so fetch the full profile.
+  useEffect(() => {
+    if (!isLoggedInCustomer || !user) return;
+    setName(user.name || '');
+    setPhone(user.phone || '');
+    authApi.me()
+      .then((full) => {
+        if (full.defaultAddress) setAddress(full.defaultAddress);
+        if (full.zone?.id) setZoneId(full.zone.id);
+      })
+      .catch(() => {});
+  }, [isLoggedInCustomer, user]);
+
   const placeOrder = async () => {
     if (items.length === 0) {
       toast.error('Your cart is empty');
       return;
     }
-    if (!name || !phone || !address || !zoneId) {
+    if (!isLoggedInCustomer && (!name || !phone)) {
       toast.error('Please fill in all delivery details');
       return;
     }
-    if (!validatePhone(phone)) {
+    if (!address || !zoneId) {
+      toast.error('Please fill in all delivery details');
+      return;
+    }
+    if (!isLoggedInCustomer && !validatePhone(phone)) {
       toast.error('Please enter a valid Pakistani phone number');
       return;
     }
@@ -56,12 +78,11 @@ export default function CartPage() {
         zoneId,
         deliveryAddress: address,
         paymentMethod,
-        guestName: name,
-        guestPhone: phone,
+        ...(isLoggedInCustomer ? {} : { guestName: name, guestPhone: phone }),
       });
       toast.success(`Order placed! Your order #: ${order.orderNumber}`);
       clear();
-      setName(''); setPhone(''); setAddress('');
+      if (!isLoggedInCustomer) { setName(''); setPhone(''); setAddress(''); }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       toast.error(error?.response?.data?.message || 'Failed to place order');
@@ -188,14 +209,24 @@ export default function CartPage() {
                 <h2 className="font-syne font-bold text-white text-xl mb-1.5">Checkout</h2>
                 <p className="text-white/50 text-sm mb-6">Delivery within 2 hours</p>
 
-                <div className="mb-4">
-                  <label className="field-label">Full Name</label>
-                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ahmed Khan" className="field-dark" />
-                </div>
-                <div className="mb-4">
-                  <label className="field-label">Phone Number</label>
-                  <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" placeholder="03001234567" className="field-dark" />
-                </div>
+                {isLoggedInCustomer ? (
+                  <div className="mb-4 bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm">
+                    <span className="text-white/50">Checking out as </span>
+                    <span className="text-white font-semibold">{name}</span>
+                    <span className="text-white/50"> · {phone}</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="mb-4">
+                      <label className="field-label">Full Name</label>
+                      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ahmed Khan" className="field-dark" />
+                    </div>
+                    <div className="mb-4">
+                      <label className="field-label">Phone Number</label>
+                      <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" placeholder="03001234567" className="field-dark" />
+                    </div>
+                  </>
+                )}
                 <div className="mb-4">
                   <label className="field-label">Delivery Address</label>
                   <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="House #, Street, Karachi" className="field-dark" />
