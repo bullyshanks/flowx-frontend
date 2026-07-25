@@ -5,16 +5,18 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
   LayoutDashboard, Package, Users, Bike, Repeat, ShoppingCart,
-  Wallet, Settings, LogOut, Menu, X, Loader2, MapPin,
+  Wallet, Settings, LogOut, Menu, X, Loader2, MapPin, ShieldAlert,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/lib/auth-store';
+import { adminApi } from '@/lib/admin-services';
 
 const NAV_ITEMS = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/orders', label: 'Orders', icon: Package },
   { href: '/admin/vendors', label: 'Vendors', icon: Users },
   { href: '/admin/riders', label: 'Riders', icon: Bike },
+  { href: '/admin/kyc', label: 'KYC Review', icon: ShieldAlert, badgeKey: 'kyc' as const },
   { href: '/admin/subscriptions', label: 'Subscriptions', icon: Repeat },
   { href: '/admin/products', label: 'Products', icon: ShoppingCart },
   { href: '/admin/zones', label: 'Zones', icon: MapPin },
@@ -28,6 +30,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { user, logout } = useAuthStore();
   const [authChecked, setAuthChecked] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [pendingKycCount, setPendingKycCount] = useState(0);
 
   // ── Auth guard ──
   useEffect(() => {
@@ -53,6 +56,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       setAuthChecked(true);
     }
   }, [user, router]);
+
+  useEffect(() => {
+    if (!authChecked) return;
+    adminApi.listPendingKyc()
+      .then((list) => setPendingKycCount(list.length))
+      .catch(() => {});
+  }, [authChecked]);
 
   const handleLogout = () => {
     logout();
@@ -102,6 +112,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               >
                 <item.icon size={18} />
                 {item.label}
+                {item.badgeKey === 'kyc' && pendingKycCount > 0 && (
+                  <span className="ml-auto bg-amber-500 text-navy text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                    {pendingKycCount}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -179,6 +194,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   >
                     <item.icon size={18} />
                     {item.label}
+                    {item.badgeKey === 'kyc' && pendingKycCount > 0 && (
+                      <span className="ml-auto bg-amber-500 text-navy text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                        {pendingKycCount}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
