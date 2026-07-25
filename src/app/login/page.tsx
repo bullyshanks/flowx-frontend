@@ -9,6 +9,7 @@ import { Footer } from '@/components/CTAFooter';
 import { authApi } from '@/lib/services';
 import { useAuthStore } from '@/lib/auth-store';
 import { validatePhone } from '@/lib/utils';
+import { REFERRAL_STORAGE_KEY } from '@/components/ReferralCapture';
 
 type Mode = 'otp-phone' | 'otp-code' | 'password';
 
@@ -23,12 +24,18 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [referralCode, setReferralCode] = useState('');
 
-  // Deep link support: /login?ref=<code> (e.g. from a shared referral link)
-  // — read directly off the URL rather than useSearchParams to avoid needing
+  // Deep link support: ?ref=<code> on this page, or on any other page the
+  // referral link pointed at (ReferralCapture stashes it in localStorage) —
+  // read directly off the URL rather than useSearchParams to avoid needing
   // a Suspense boundary just for this.
   useEffect(() => {
     const ref = new URLSearchParams(window.location.search).get('ref');
-    if (ref) setReferralCode(ref);
+    if (ref) {
+      setReferralCode(ref);
+    } else {
+      const stored = localStorage.getItem(REFERRAL_STORAGE_KEY);
+      if (stored) setReferralCode(stored);
+    }
   }, []);
 
   const sendOtp = async () => {
@@ -59,6 +66,7 @@ export default function LoginPage() {
       const data = await authApi.verifyOtp(phone, code, 'login', referralCode || undefined);
       setAuth(data.token, data.user);
       localStorage.setItem('flowx_token', data.token);
+      localStorage.removeItem(REFERRAL_STORAGE_KEY);
       toast.success('Logged in!');
       setTimeout(() => router.push('/'), 800);
     } catch (err: unknown) {
@@ -140,10 +148,27 @@ export default function LoginPage() {
                     className="field-dark pl-11"
                   />
                 </div>
-                {referralCode && (
-                  <div className="mb-4 px-4 py-2.5 bg-flowgreen/10 border border-flowgreen/25 rounded-xl text-flowgreen text-xs font-semibold">
-                    🎁 Referral code applied — new customers get Rs. 50 off their first order!
+                {referralCode ? (
+                  <div className="mb-4 px-4 py-2.5 bg-flowgreen/10 border border-flowgreen/25 rounded-xl text-flowgreen text-xs font-semibold flex items-center justify-between gap-2">
+                    <span>🎁 Referral code {referralCode} applied — new customers get Rs. 50 off!</span>
+                    <button
+                      type="button"
+                      onClick={() => { setReferralCode(''); localStorage.removeItem(REFERRAL_STORAGE_KEY); }}
+                      className="text-flowgreen/70 hover:text-flowgreen shrink-0"
+                    >
+                      ✕
+                    </button>
                   </div>
+                ) : (
+                  <details className="mb-4 text-xs text-white/50">
+                    <summary className="cursor-pointer hover:text-white/70">Have a referral code?</summary>
+                    <input
+                      type="text"
+                      placeholder="e.g. FLW8X2K9"
+                      onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                      className="field-dark mt-2 text-sm uppercase"
+                    />
+                  </details>
                 )}
                 <button
                   onClick={sendOtp}

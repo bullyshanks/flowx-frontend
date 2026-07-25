@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Bricolage_Grotesque, Hanken_Grotesk, Noto_Nastaliq_Urdu } from 'next/font/google';
 import { Toaster } from 'react-hot-toast';
 import PushRegistrar from '@/components/PushRegistrar';
+import ReferralCapture from '@/components/ReferralCapture';
 import './globals.css';
 
 // Display face — liquid, characterful grotesque for headings/numerals.
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         {children}
         <PushRegistrar />
+        <ReferralCapture />
         <Toaster
           position="bottom-right"
           toastOptions={{
