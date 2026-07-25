@@ -12,6 +12,10 @@ export default function Contact() {
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // No backend endpoint exists yet to receive these messages — rather than
+  // silently discarding them behind a fake success toast (the previous
+  // behavior), hand off to WhatsApp with everything pre-filled so the
+  // message actually reaches someone. Interim fix; a real inbox is planned.
   const send = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email || !message) {
@@ -19,11 +23,20 @@ export default function Contact() {
       return;
     }
     setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
-      toast.success('Message sent! We&apos;ll get back to you within 2 hours.');
-      setName(''); setEmail(''); setPhone(''); setMessage('');
-    }, 800);
+    const wa = process.env.NEXT_PUBLIC_WHATSAPP || '923158374442';
+    const lines = [
+      `*${subject}*`,
+      `Name: ${name}`,
+      `Email: ${email}`,
+      phone ? `Phone: ${phone}` : null,
+      '',
+      message,
+    ].filter(Boolean);
+    const url = `https://wa.me/${wa}?text=${encodeURIComponent(lines.join('\n'))}`;
+    window.open(url, '_blank', 'noopener');
+    toast.success('Opening WhatsApp — send the pre-filled message to reach us.');
+    setSubmitting(false);
+    setName(''); setEmail(''); setPhone(''); setMessage('');
   };
 
   return (
