@@ -170,12 +170,12 @@ function TrackPageInner() {
                           </div>
                           {active && status !== 'OUT_FOR_DELIVERY' && order.vendor && (
                             <div className="text-xs text-white/50 mt-0.5">
-                              Vendor: {order.vendor.name} · {order.vendor.phone}
+                              Vendor: {order.vendor.name}
                             </div>
                           )}
                           {active && status === 'OUT_FOR_DELIVERY' && order.rider && (
                             <div className="text-xs text-white/50 mt-0.5">
-                              Rider: {order.rider.name} · {order.rider.phone}
+                              Rider: {order.rider.name}
                             </div>
                           )}
                         </div>

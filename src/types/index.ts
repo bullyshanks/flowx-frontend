@@ -107,8 +107,8 @@ export interface Order {
   deliveryDate?: string;
   deliveryTimeSlot?: string;
   fulfillmentType: FulfillmentType;
-  vendor?: { name: string; phone: string };
-  rider?: { name: string; phone: string };
+  vendor?: { name: string; phone?: string };
+  rider?: { name: string; phone?: string };
   riderId?: string | null;
   riderAcceptDeadline?: string | null;
   subtotal: number;
