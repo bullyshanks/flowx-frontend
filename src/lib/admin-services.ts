@@ -279,7 +279,29 @@ interface AdminRiderWallet {
   settlements: RiderSettlement[];
 }
 
+export interface BankTransferOrder {
+  id: string;
+  orderNumber: string;
+  total: number | string;
+  status: string;
+  paymentStatus: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+  transactionId: string | null;
+  createdAt: string;
+  customerName: string;
+  customerPhone: string | null;
+}
+
 export const financeApi = {
+  // Bank transfers land in a bank account, not through the app, so an admin
+  // confirms them by hand against a statement.
+  listBankTransfers: async (): Promise<BankTransferOrder[]> => {
+    const { data } = await api.get('/admin/finance/bank-transfers');
+    return data.orders;
+  },
+  markOrderPaid: async (orderId: string, paymentReference?: string, paid = true) => {
+    const { data } = await api.post(`/admin/finance/orders/${orderId}/mark-paid`, { paymentReference, paid });
+    return data.order;
+  },
   getCommissionSettings: async (): Promise<CommissionSettings> => {
     const { data } = await api.get('/admin/finance/commission-settings');
     return data.settings;

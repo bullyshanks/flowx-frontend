@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 import {
   adminApi, financeApi, AdminStats, VendorListItem, RiderListItem,
   AdminSettlement, UnsettledBalance, RiderSettlement,
-  AdminRiderSettlement, UnsettledRiderBalance, Refund,
+  AdminRiderSettlement, UnsettledRiderBalance, Refund, BankTransferOrder,
 } from '@/lib/admin-services';
 import type { WalletTransaction, VendorWallet } from '@/lib/vendor-portal-services';
 import { ENTRY_TYPE_META, SETTLEMENT_BADGE, REFUND_BADGE } from '@/lib/finance-meta';
@@ -19,13 +19,14 @@ import {
 } from '@/components/admin/ui';
 import { formatPrice, formatDateOnly } from '@/lib/utils';
 
-type Tab = 'overview' | 'settlements' | 'riderSettlements' | 'refunds' | 'wallets' | 'riders' | 'settings';
+type Tab = 'overview' | 'settlements' | 'riderSettlements' | 'refunds' | 'bankTransfers' | 'wallets' | 'riders' | 'settings';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'settlements', label: 'Settlements' },
   { id: 'riderSettlements', label: 'Rider Settlements' },
   { id: 'refunds', label: 'Refunds' },
+  { id: 'bankTransfers', label: 'Bank Transfers' },
   { id: 'wallets', label: 'Vendor Wallets' },
   { id: 'riders', label: 'Rider Ledgers' },
   { id: 'settings', label: 'Settings' },
@@ -121,6 +122,7 @@ export default function AdminFinancePage() {
         {tab === 'settlements' && <SettlementsTab />}
         {tab === 'riderSettlements' && <RiderSettlementsTab />}
         {tab === 'refunds' && <RefundsTab />}
+        {tab === 'bankTransfers' && <BankTransfersTab />}
         {tab === 'wallets' && (
           selectedVendor
             ? <VendorWalletDetail vendorId={selectedVendor} onBack={() => selectVendor(null)} />
@@ -1246,6 +1248,168 @@ function RiderLedgerDetail({ riderId, onBack }: { riderId: string; onBack: () =>
 }
 
 // ═══ Refunds ═══
+// ── Bank Transfers ──
+// A bank transfer arrives in a bank account, not through the app, so nothing
+// can confirm it automatically. This is the reconciliation worklist: match a
+// line on a statement to an order and confirm it. Until that happens the money
+// is invisible to reporting and the order can't be refunded, since as far as
+// the system knows it was never paid.
+function BankTransfersTab() {
+  const [orders, setOrders] = useState<BankTransferOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actioning, setActioning] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [reference, setReference] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setOrders(await financeApi.listBankTransfers());
+    } catch {
+      toast.error('Failed to load bank transfers');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const confirmReceived = async (orderId: string) => {
+    setActioning(orderId);
+    try {
+      await financeApi.markOrderPaid(orderId, reference.trim() || undefined, true);
+      toast.success('Payment confirmed — the customer has been notified');
+      setConfirmingId(null);
+      setReference('');
+      load();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      toast.error(error?.response?.data?.message || 'Failed to confirm payment');
+    } finally {
+      setActioning(null);
+    }
+  };
+
+  const undo = async (orderId: string) => {
+    if (!window.confirm('Reverse this confirmation? The order will show as unpaid again.')) return;
+    setActioning(orderId);
+    try {
+      await financeApi.markOrderPaid(orderId, undefined, false);
+      toast.success('Confirmation reversed');
+      load();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      toast.error(error?.response?.data?.message || 'Failed to reverse');
+    } finally {
+      setActioning(null);
+    }
+  };
+
+  if (loading) {
+    return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-electric" size={32} /></div>;
+  }
+
+  const awaiting = orders.filter((o) => o.paymentStatus !== 'PAID').length;
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div>
+          <h2 className="font-syne font-bold text-white text-lg">Bank Transfers</h2>
+          <p className="text-white/45 text-xs mt-0.5">
+            {awaiting > 0
+              ? `${awaiting} order${awaiting === 1 ? '' : 's'} awaiting confirmation against your bank statement`
+              : 'All bank transfers confirmed'}
+          </p>
+        </div>
+        <Button variant="secondary" onClick={load}><RefreshCw size={14} /> Refresh</Button>
+      </div>
+
+      {orders.length === 0 ? (
+        <EmptyState icon={Banknote} title="No bank transfer orders" description="Orders paid by bank transfer will appear here for confirmation." />
+      ) : (
+        <Table>
+          <thead>
+            <tr>
+              <Th>Order</Th>
+              <Th>Customer</Th>
+              <Th>Placed</Th>
+              <Th className="text-right">Amount</Th>
+              <Th>Payment</Th>
+              <Th>Actions</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map((o) => {
+              const isConfirming = confirmingId === o.id;
+              const isPaid = o.paymentStatus === 'PAID';
+              return (
+                <React.Fragment key={o.id}>
+                  <tr className="hover:bg-white/[0.02]">
+                    <Td className="font-mono text-xs text-white">{o.orderNumber}</Td>
+                    <Td>
+                      <div className="text-white text-sm">{o.customerName}</div>
+                      <div className="text-[11px] text-white/60 font-mono">{o.customerPhone || '—'}</div>
+                    </Td>
+                    <Td className="text-white/65 text-xs">{formatDateOnly(o.createdAt)}</Td>
+                    <Td className="text-right font-bold text-white">{formatPrice(Number(o.total))}</Td>
+                    <Td>
+                      <StatusBadge variant={isPaid ? 'paid' : 'pending'}>
+                        {isPaid ? 'RECEIVED' : 'AWAITING'}
+                      </StatusBadge>
+                      {isPaid && o.transactionId && (
+                        <div className="text-[11px] text-white/45 font-mono mt-1">{o.transactionId}</div>
+                      )}
+                    </Td>
+                    <Td>
+                      {!isPaid && !isConfirming && (
+                        <Button size="sm" variant="success" onClick={() => { setConfirmingId(o.id); setReference(''); }}>
+                          <Check size={12} /> Confirm Received
+                        </Button>
+                      )}
+                      {isPaid && (
+                        <Button size="sm" variant="secondary" disabled={actioning === o.id} onClick={() => undo(o.id)}>
+                          Undo
+                        </Button>
+                      )}
+                    </Td>
+                  </tr>
+                  {isConfirming && (
+                    <tr className="bg-white/[0.02]">
+                      <td colSpan={6} className="px-4 py-3">
+                        <div className="flex flex-wrap items-end gap-3">
+                          <div>
+                            <label className="block text-white/50 text-xs mb-1.5">
+                              Bank Reference <span className="text-white/30">(optional)</span>
+                            </label>
+                            <input
+                              value={reference}
+                              onChange={(e) => setReference(e.target.value)}
+                              placeholder="e.g. TRX-88213"
+                              className="bg-white/5 border border-white/15 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-electric"
+                            />
+                          </div>
+                          <Button size="sm" variant="success" disabled={actioning === o.id} onClick={() => confirmReceived(o.id)}>
+                            <Check size={12} /> Confirm {formatPrice(Number(o.total))} received
+                          </Button>
+                          <Button size="sm" variant="secondary" onClick={() => setConfirmingId(null)}>Cancel</Button>
+                          <span className="text-white/40 text-xs">
+                            Confirms the full order amount and notifies the customer.
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </Table>
+      )}
+    </>
+  );
+}
+
 function RefundsTab() {
   const [refunds, setRefunds] = useState<Refund[]>([]);
   const [loading, setLoading] = useState(true);
