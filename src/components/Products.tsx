@@ -16,6 +16,12 @@ import type { Product, Zone, PaymentMethod, SubscriptionFrequency } from '@/type
 // both need the same payment handoff.
 const ONLINE_METHODS: PaymentMethod[] = ['JAZZCASH', 'EASYPAISA', 'CARD'];
 
+// Subscriptions settle out of band only. The gateways collect one payment
+// against a checkout the customer is present for, and there's no saved
+// mandate, so a recurring order paid "by JazzCash" would simply never be
+// charged. Mirrors SUBSCRIPTION_PAYMENT_METHODS in subscription.controller.js.
+const SUBSCRIPTION_PAYMENT_METHODS: PaymentMethod[] = ['COD', 'BANK_TRANSFER'];
+
 type Tab = 'onetime' | 'subscription';
 type OrderTab = 'quick' | 'subscribe';
 
@@ -473,7 +479,7 @@ export default function Products() {
                 <div className="mb-4">
                   <label className="field-label">Payment Method</label>
                   <div className="flex flex-wrap gap-2">
-                    {(['COD', 'JAZZCASH', 'EASYPAISA', 'BANK_TRANSFER'] as PaymentMethod[]).map((m) => (
+                    {SUBSCRIPTION_PAYMENT_METHODS.map((m) => (
                       <button
                         key={m}
                         onClick={() => setSubPaymentMethod(m)}
@@ -487,6 +493,10 @@ export default function Products() {
                       </button>
                     ))}
                   </div>
+                  <p className="text-[11px] text-white/40 mt-2">
+                    Recurring deliveries are paid on delivery or by bank transfer — online payment is
+                    for one-time orders.
+                  </p>
                 </div>
 
                 <div className="bg-white/[0.04] rounded-xl p-3.5 mb-5">
