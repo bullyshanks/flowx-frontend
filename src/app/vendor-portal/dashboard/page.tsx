@@ -148,8 +148,11 @@ export default function VendorDashboardPage() {
           icon={CheckCircle2}
           color="green"
         />
+        {/* totalAssigned is every order ever assigned to this vendor, at any
+            status — labelling it "Total Delivered" made it disagree with the
+            Completed card sitting right beside it. */}
         <StatCard
-          label="Total Delivered"
+          label="Total Orders"
           value={stats.totalAssigned}
           icon={TrendingUp}
           color="cyan"

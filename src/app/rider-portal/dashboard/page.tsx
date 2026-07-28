@@ -119,7 +119,11 @@ export default function RiderDashboardPage() {
         <StatCard label="Today's Deliveries" value={stats.todayOrders} icon={Package} color="blue" />
         <StatCard label="In Progress" value={stats.pendingOrders} icon={Clock} color="amber" />
         <StatCard label="Completed" value={stats.completedOrders} icon={CheckCircle2} color="green" />
-        <StatCard label="Total Delivered" value={stats.totalAssigned} icon={TrendingUp} color="cyan" />
+        {/* totalAssigned counts every order ever assigned to this rider,
+            whatever its status — calling it "Total Delivered" put a number
+            next to Completed that contradicted it, and overstated deliveries
+            to someone who is paid per delivery. */}
+        <StatCard label="Total Orders" value={stats.totalAssigned} icon={TrendingUp} color="cyan" />
       </div>
 
       {/* ── Awaiting my response ── */}
