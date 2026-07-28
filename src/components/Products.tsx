@@ -57,7 +57,12 @@ export default function Products() {
         setZones(z);
         if (p.length) {
           setSelectedProduct(p[0]);
+          // Both quantities, not just the one-time one. selectProduct() syncs
+          // the pair, but a customer who never clicks a product card keeps the
+          // default here — which let the subscribe form submit below a
+          // product's minimum on first load.
           setQty(p[0].minQuantity);
+          setSubQty(p[0].minQuantity);
         }
       })
       .catch((err) => {
