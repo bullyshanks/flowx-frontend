@@ -11,9 +11,14 @@ import Navbar from '@/components/Navbar';
 import { Footer } from '@/components/CTAFooter';
 import { useCartStore } from '@/lib/cart-store';
 import { useAuthStore } from '@/lib/auth-store';
-import { productsApi, ordersApi, authApi, referralApi } from '@/lib/services';
+import { productsApi, ordersApi, authApi, referralApi, paymentsApi, redirectToGateway } from '@/lib/services';
 import { formatPrice, validatePhone } from '@/lib/utils';
 import type { Zone, PaymentMethod } from '@/types';
+
+// Methods settled through a gateway, so checkout redirects instead of ending
+// on this page. BANK_TRANSFER is deliberately absent — it's reconciled by hand
+// against a receipt, like COD.
+const ONLINE_METHODS: PaymentMethod[] = ['JAZZCASH', 'EASYPAISA', 'CARD'];
 
 export default function CartPage() {
   const items = useCartStore((s) => s.items);
@@ -90,6 +95,22 @@ export default function CartPage() {
         ...(isLoggedInCustomer ? {} : { guestName: name, guestPhone: phone }),
       });
       const discount = Number(order.discountAmount || 0);
+
+      // Online methods hand off to a gateway before the order is really done.
+      // Clear the cart first: the customer is about to leave the site, and
+      // coming back to a still-full cart invites a duplicate order. The order
+      // already exists server-side, so nothing is lost by clearing here.
+      if (ONLINE_METHODS.includes(paymentMethod)) {
+        clear();
+        toast.success('Redirecting to payment…');
+        const payment = await paymentsApi.initiate({
+          orderId: order.id,
+          ...(isLoggedInCustomer ? {} : { guestPhone: phone }),
+        });
+        redirectToGateway(payment.redirect);
+        return; // navigating away — don't fall through to the COD messaging
+      }
+
       toast.success(
         discount > 0
           ? `Order placed! Rs. ${discount} discount applied. Your order #: ${order.orderNumber}`

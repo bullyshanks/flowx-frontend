@@ -159,6 +159,74 @@ export const notificationsApi = {
   },
 };
 
+// ─── Payments ──
+
+export interface PaymentRedirect {
+  url: string;
+  method: 'GET' | 'POST';
+  fields: Record<string, string>;
+}
+
+export interface PaymentInitiation {
+  mode: 'dev' | 'live';
+  provider: string;
+  reference: string;
+  redirect: PaymentRedirect;
+}
+
+export interface PaymentStatus {
+  orderNumber: string;
+  total: number | string;
+  paymentMethod: string;
+  paymentStatus: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+  status: string;
+  payments: Array<{
+    provider: string;
+    status: string;
+    failureReason?: string | null;
+    paidAt?: string | null;
+    createdAt: string;
+  }>;
+}
+
+export const paymentsApi = {
+  initiate: async (payload: { orderId?: string; orderNumber?: string; guestPhone?: string }): Promise<PaymentInitiation> => {
+    const { data } = await api.post('/payments/initiate', payload);
+    return data;
+  },
+  // The result page must read payment state from here rather than from its own
+  // query string — the gateway sends the customer back through the browser, so
+  // anything in the URL is user-editable.
+  status: async (orderNumber: string, guestPhone?: string): Promise<PaymentStatus> => {
+    const { data } = await api.get(`/payments/status/${orderNumber}`, {
+      params: guestPhone ? { guestPhone } : undefined,
+    });
+    return data.order;
+  },
+};
+
+// Hands the browser to the gateway. A GET is a plain navigation; a POST needs
+// a real form submit, because gateways like JazzCash expect form-encoded
+// fields and a signed hash that we must not reshape into JSON.
+export function redirectToGateway(redirect: PaymentRedirect): void {
+  if (redirect.method === 'GET') {
+    window.location.href = redirect.url;
+    return;
+  }
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = redirect.url;
+  Object.entries(redirect.fields).forEach(([name, value]) => {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = name;
+    input.value = String(value);
+    form.appendChild(input);
+  });
+  document.body.appendChild(form);
+  form.submit();
+}
+
 // ─── Referral ──
 
 export interface ReferralInfo {
