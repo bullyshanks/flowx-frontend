@@ -3,11 +3,18 @@
 import { useEffect, useState } from 'react';
 import { Loader2, Plus, Minus, ShoppingBag } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { productsApi, ordersApi, subscriptionsApi } from '@/lib/services';
+import {
+  productsApi, ordersApi, subscriptionsApi, paymentsApi, redirectToGateway, rememberGuestPayment,
+} from '@/lib/services';
 import { formatPrice, validatePhone } from '@/lib/utils';
 import { useCartStore } from '@/lib/cart-store';
 import { useAuthStore } from '@/lib/auth-store';
 import type { Product, Zone, PaymentMethod, SubscriptionFrequency } from '@/types';
+
+// Methods settled through a gateway. Kept in sync with the cart's copy —
+// quick order and cart are deliberately parallel flows (see CLAUDE.md), so
+// both need the same payment handoff.
+const ONLINE_METHODS: PaymentMethod[] = ['JAZZCASH', 'EASYPAISA', 'CARD'];
 
 type Tab = 'onetime' | 'subscription';
 type OrderTab = 'quick' | 'subscribe';
@@ -99,6 +106,20 @@ export default function Products() {
         guestName: name,
         guestPhone: phone,
       });
+
+      // Online methods aren't done at placement — hand off to the gateway,
+      // same as the cart flow. Without this the order exists but nobody is
+      // ever asked to pay for it.
+      if (ONLINE_METHODS.includes(paymentMethod)) {
+        toast.success('Redirecting to payment…');
+        // Quick order is always a guest order — remember the phone so the
+        // result page can prove ownership when the gateway sends them back.
+        rememberGuestPayment(order.orderNumber, phone);
+        const payment = await paymentsApi.initiate({ orderId: order.id, guestPhone: phone });
+        redirectToGateway(payment.redirect);
+        return; // navigating away
+      }
+
       toast.success(`Order placed! Your order #: ${order.orderNumber}`);
       // Reset form
       setName(''); setPhone(''); setAddress('');

@@ -11,7 +11,9 @@ import Navbar from '@/components/Navbar';
 import { Footer } from '@/components/CTAFooter';
 import { useCartStore } from '@/lib/cart-store';
 import { useAuthStore } from '@/lib/auth-store';
-import { productsApi, ordersApi, authApi, referralApi, paymentsApi, redirectToGateway } from '@/lib/services';
+import {
+  productsApi, ordersApi, authApi, referralApi, paymentsApi, redirectToGateway, rememberGuestPayment,
+} from '@/lib/services';
 import { formatPrice, validatePhone } from '@/lib/utils';
 import type { Zone, PaymentMethod } from '@/types';
 
@@ -103,6 +105,9 @@ export default function CartPage() {
       if (ONLINE_METHODS.includes(paymentMethod)) {
         clear();
         toast.success('Redirecting to payment…');
+        // A guest has no JWT to prove ownership when they come back from the
+        // gateway — remember the phone locally so the result page can.
+        if (!isLoggedInCustomer) rememberGuestPayment(order.orderNumber, phone);
         const payment = await paymentsApi.initiate({
           orderId: order.id,
           ...(isLoggedInCustomer ? {} : { guestPhone: phone }),

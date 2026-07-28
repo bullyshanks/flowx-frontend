@@ -205,6 +205,43 @@ export const paymentsApi = {
   },
 };
 
+// A guest has no account, so /payments/status proves ownership with the phone
+// the order was placed under. That can't ride in the return URL — it's a phone
+// number, and the gateway redirect is a plain browser navigation anyone could
+// see or share. Stash it locally instead: the gateway returns the customer to
+// the same browser, so it's there when the result page needs it.
+//
+// If storage is unavailable or cleared, the result page falls back to telling
+// the customer to use Track Order rather than guessing.
+const PENDING_PAYMENT_KEY = 'flowx_pending_payment';
+
+export function rememberGuestPayment(orderNumber: string, guestPhone: string): void {
+  try {
+    localStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify({ orderNumber, guestPhone }));
+  } catch {
+    // Private browsing or storage disabled — not worth breaking checkout over.
+  }
+}
+
+export function recallGuestPayment(orderNumber: string): string | undefined {
+  try {
+    const raw = localStorage.getItem(PENDING_PAYMENT_KEY);
+    if (!raw) return undefined;
+    const saved = JSON.parse(raw) as { orderNumber?: string; guestPhone?: string };
+    return saved.orderNumber === orderNumber ? saved.guestPhone : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function forgetGuestPayment(): void {
+  try {
+    localStorage.removeItem(PENDING_PAYMENT_KEY);
+  } catch {
+    /* nothing to clean up */
+  }
+}
+
 // Hands the browser to the gateway. A GET is a plain navigation; a POST needs
 // a real form submit, because gateways like JazzCash expect form-encoded
 // fields and a signed hash that we must not reshape into JSON.

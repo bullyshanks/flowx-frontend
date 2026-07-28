@@ -12,7 +12,7 @@ import Link from 'next/link';
 import { CheckCircle2, XCircle, Loader2, Clock, ArrowRight } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import { Footer } from '@/components/CTAFooter';
-import { paymentsApi, type PaymentStatus } from '@/lib/services';
+import { paymentsApi, recallGuestPayment, forgetGuestPayment, type PaymentStatus } from '@/lib/services';
 import { formatPrice } from '@/lib/utils';
 
 // A gateway callback can land a moment after the customer does, so a PENDING
@@ -33,6 +33,9 @@ export default function PaymentResultPage() {
       const status = await paymentsApi.status(order, guestPhone);
       setResult(status);
       setError('');
+      // Once it's settled the stashed phone has done its job — don't leave a
+      // phone number sitting in localStorage indefinitely.
+      if (status.paymentStatus !== 'PENDING') forgetGuestPayment();
       return status;
     } catch (err: unknown) {
       const e = err as { response?: { status?: number; data?: { message?: string } } };
@@ -59,7 +62,10 @@ export default function PaymentResultPage() {
       setLoading(false);
       return;
     }
-    load(order, params.get('guestPhone') || undefined);
+    // Logged-in customers are identified by their JWT. Guests fall back to the
+    // phone stashed at checkout, since the gateway returns them here with no
+    // credentials of any kind.
+    load(order, recallGuestPayment(order));
   }, [load]);
 
   // Keep checking only while the answer could still change.
