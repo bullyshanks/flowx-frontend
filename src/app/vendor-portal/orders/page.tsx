@@ -47,6 +47,11 @@ export default function VendorOrdersPage() {
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       toast.error(error?.response?.data?.message || 'Failed to accept');
+      // Offers expire after ACCEPT_WINDOW_SECONDS and rotate to the next
+      // vendor in the zone, so the usual reason an accept fails is that this
+      // order is no longer ours. Reload rather than leaving a row on screen
+      // that will fail every time it's tapped.
+      load();
     }
   };
 
@@ -162,7 +167,11 @@ function VendorOrderCard({
   const isAvailable = order.status === 'PENDING' || order.status === 'CONFIRMED';
   const isAssigned = order.status === 'ASSIGNED';
   const isOutForDelivery = order.status === 'OUT_FOR_DELIVERY';
-  const phone = order.guestPhone || '';
+  // Guests carry their details on the order; registered customers come
+  // through the relation. The backend only sends either once this order is
+  // actually ours, so an open offer still shows nothing.
+  const customerName = order.guestName || order.customer?.name || '';
+  const phone = order.guestPhone || order.customer?.phone || '';
 
   return (
     <div className="bg-navy border border-white/[0.08] rounded-2xl overflow-hidden hover:border-flowgreen/30 transition">
@@ -199,7 +208,7 @@ function VendorOrderCard({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="bg-white/[0.04] rounded-xl p-3.5">
               <div className="text-[10px] text-white/45 uppercase tracking-wide mb-1.5">Customer</div>
-              <div className="text-sm text-white font-semibold mb-1">{order.guestName || '—'}</div>
+              <div className="text-sm text-white font-semibold mb-1">{customerName || '—'}</div>
               <div className="text-xs text-white/65 font-mono flex items-center gap-1.5">
                 <Phone size={12} /> {phone}
               </div>

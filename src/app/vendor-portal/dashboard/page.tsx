@@ -201,7 +201,7 @@ export default function VendorDashboardPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {availableOrders.slice(0, 4).map((o) => (
-              <OrderCard key={o.id} order={o} showAccept />
+              <OrderCard key={o.id} order={o} showAccept onAccepted={load} />
             ))}
           </div>
         )}
@@ -252,7 +252,7 @@ function ToggleCard({
 }
 
 // ─── Inline order card ──
-function OrderCard({ order, showAccept = false }: { order: Order; showAccept?: boolean }) {
+function OrderCard({ order, showAccept = false, onAccepted }: { order: Order; showAccept?: boolean; onAccepted?: () => void }) {
   const [accepting, setAccepting] = useState(false);
 
   const accept = async () => {
@@ -265,6 +265,9 @@ function OrderCard({ order, showAccept = false }: { order: Order; showAccept?: b
       const error = err as { response?: { data?: { message?: string } } };
       toast.error(error?.response?.data?.message || 'Failed to accept');
       setAccepting(false);
+      // The offer has almost certainly rotated to another vendor — reload so
+      // the card disappears instead of inviting another failed tap.
+      onAccepted?.();
     }
   };
 

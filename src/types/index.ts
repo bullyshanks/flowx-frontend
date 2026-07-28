@@ -107,6 +107,10 @@ export interface Order {
   deliveryDate?: string;
   deliveryTimeSlot?: string;
   fulfillmentType: FulfillmentType;
+  // Only sent to the vendor/rider actually fulfilling this order — an open
+  // offer is visible to everyone eligible in the zone, so the backend strips
+  // it until the order is accepted (see order.controller withCustomerContact).
+  customer?: { name: string; phone?: string } | null;
   vendor?: { name: string; phone?: string };
   rider?: { name: string; phone?: string };
   riderId?: string | null;

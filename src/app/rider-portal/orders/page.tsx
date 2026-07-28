@@ -63,6 +63,10 @@ export default function RiderOrdersPage() {
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       toast.error(error?.response?.data?.message || 'Failed to accept');
+      // Offers rotate to the next rider once the accept window lapses, so a
+      // failure usually means this delivery is no longer ours — refresh
+      // instead of leaving a row that will fail on every tap.
+      load();
     }
   };
 
@@ -184,7 +188,11 @@ function RiderOrderCard({
   const offered = isOffered(order);
   const isAssigned = !offered && order.status === 'ASSIGNED';
   const isOutForDelivery = !offered && order.status === 'OUT_FOR_DELIVERY';
-  const phone = order.guestPhone || '';
+  // Guests carry their details on the order; registered customers come
+  // through the relation. The backend only sends either once this delivery
+  // has been accepted, so a pending offer still shows nothing.
+  const customerName = order.guestName || order.customer?.name || '';
+  const phone = order.guestPhone || order.customer?.phone || '';
 
   const secondsLeft = offered && order.riderAcceptDeadline
     ? Math.max(0, Math.floor((new Date(order.riderAcceptDeadline).getTime() - now) / 1000))
@@ -230,7 +238,7 @@ function RiderOrderCard({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="bg-white/[0.04] rounded-xl p-3.5">
               <div className="text-[10px] text-white/45 uppercase tracking-wide mb-1.5">Customer</div>
-              <div className="text-sm text-white font-semibold mb-1">{order.guestName || '—'}</div>
+              <div className="text-sm text-white font-semibold mb-1">{customerName || '—'}</div>
               <div className="text-xs text-white/65 font-mono flex items-center gap-1.5">
                 <Phone size={12} /> {phone}
               </div>
