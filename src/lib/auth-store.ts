@@ -3,6 +3,7 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import * as Sentry from '@sentry/nextjs';
 import type { User } from '@/types';
 
 interface AuthState {
@@ -17,8 +18,16 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       token: null,
       user: null,
-      setAuth: (token, user) => set({ token, user }),
-      logout: () => set({ token: null, user: null }),
+      setAuth: (token, user) => {
+        // Id and role only — never the phone number. See beforeSend in
+        // lib/sentry-shared.ts, which enforces this a second time.
+        Sentry.setUser({ id: user.id, role: user.role });
+        set({ token, user });
+      },
+      logout: () => {
+        Sentry.setUser(null);
+        set({ token: null, user: null });
+      },
     }),
     {
       name: 'flowx_auth',

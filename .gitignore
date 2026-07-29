@@ -11,3 +11,7 @@ build/
 .idea/
 next-env.d.ts
 tsconfig.tsbuildinfo
+
+# Sentry — the CLI writes a local config that can contain an auth token
+.sentryclirc
+.env.sentry-build-plugin

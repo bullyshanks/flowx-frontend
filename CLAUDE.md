@@ -60,6 +60,14 @@ NEXT_PUBLIC_API_URL=https://flowx-backend-production.up.railway.app/api
 NEXT_PUBLIC_WHATSAPP=923158374442
 ```
 
+## Error Tracking (Sentry)
+- Config lives in `sentry.{client,server,edge}.config.ts`, sharing `src/lib/sentry-shared.ts`. `instrumentation.ts` loads the server/edge ones — this needs `experimental.instrumentationHook` in `next.config.js` on Next 14.
+- **Disabled unless `NEXT_PUBLIC_SENTRY_DSN` is set.** `next.config.js` only wraps with `withSentryConfig` when the DSN exists, so builds without it are untouched (and ~79 kB lighter).
+- `beforeSend` strips query strings, headers and cookies, drops console breadcrumbs, and reduces `user` to `{ id, role }` — never the phone number. `auth-store.ts` sets that on login and clears it on logout.
+- **Session Replay is deliberately off** — it records the DOM, which here means addresses, phone numbers and CNIC uploads.
+- `tunnelRoute: '/monitoring'` proxies events through our own domain so ad blockers don't eat error reports.
+- `sentry.client.config.ts` warns it's deprecated in favour of `instrumentation-client.ts` — that needs Next 15.3, so it stays until the Next upgrade.
+
 ## Deployment (Vercel)
 - Connected to GitHub — every `git push` to main auto-deploys, no manual dashboard action needed.
 - Workflow: edit locally → `npm run dev` to test → `git add . && git commit -m "..." && git push`.
