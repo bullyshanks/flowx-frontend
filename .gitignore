@@ -15,3 +15,6 @@ tsconfig.tsbuildinfo
 # Sentry — the CLI writes a local config that can contain an auth token
 .sentryclirc
 .env.sentry-build-plugin
+
+# Local Claude Code launch config
+.claude/
