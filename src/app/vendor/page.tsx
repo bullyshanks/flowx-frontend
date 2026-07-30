@@ -132,8 +132,15 @@ export default function VendorPage() {
               <label className="field-label">Select Delivery Area / Zone</label>
               <select value={zoneId} onChange={(e) => setZoneId(e.target.value)} className="field-dark">
                 <option value="">Select your zone</option>
+                {/* Every zone stays selectable here, including ones we don't
+                    serve yet — signing up in an uncovered area is how it
+                    becomes covered. Flagging them as open territory turns the
+                    gap into a reason to join. */}
                 {zones.map((z) => (
-                  <option key={z.id} value={z.id} className="bg-navy2">{z.name}</option>
+                  <option key={z.id} value={z.id} className="bg-navy2">
+                    {z.name}
+                    {z.isServiceable === false ? ' — no vendor yet, be the first' : ''}
+                  </option>
                 ))}
               </select>
             </div>

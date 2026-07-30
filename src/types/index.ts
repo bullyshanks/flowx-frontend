@@ -63,6 +63,10 @@ export interface Zone {
   id: string;
   name: string;
   city: string;
+  // False when no approved vendor covers the zone yet, so we cannot deliver
+  // there. Customer forms disable these; vendor/rider signup must NOT — those
+  // are how a zone becomes serviceable in the first place.
+  isServiceable?: boolean;
 }
 
 export interface Product {

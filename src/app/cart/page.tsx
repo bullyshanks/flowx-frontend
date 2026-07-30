@@ -9,6 +9,7 @@ import {
 import toast from 'react-hot-toast';
 import Navbar from '@/components/Navbar';
 import { Footer } from '@/components/CTAFooter';
+import ZoneOptions from '@/components/ZoneOptions';
 import { useCartStore } from '@/lib/cart-store';
 import { useAuthStore } from '@/lib/auth-store';
 import {
@@ -275,9 +276,7 @@ export default function CartPage() {
                   <label className="field-label">Area / Zone</label>
                   <select value={zoneId} onChange={(e) => setZoneId(e.target.value)} className="field-dark">
                     <option value="">Select your area</option>
-                    {zones.map((z) => (
-                      <option key={z.id} value={z.id} className="bg-navy2">{z.name}</option>
-                    ))}
+                    <ZoneOptions zones={zones} />
                   </select>
                 </div>
                 <div className="mb-5">

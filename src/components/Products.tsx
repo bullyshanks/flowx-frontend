@@ -7,6 +7,7 @@ import {
   productsApi, ordersApi, subscriptionsApi, paymentsApi, redirectToGateway, rememberGuestPayment,
 } from '@/lib/services';
 import { formatPrice, validatePhone } from '@/lib/utils';
+import ZoneOptions from '@/components/ZoneOptions';
 import { useCartStore } from '@/lib/cart-store';
 import { useAuthStore } from '@/lib/auth-store';
 import type { Product, Zone, PaymentMethod, SubscriptionFrequency } from '@/types';
@@ -332,11 +333,7 @@ export default function Products() {
                     className="field-dark"
                   >
                     <option value="">Select your area</option>
-                    {zones.map((z) => (
-                      <option key={z.id} value={z.id} className="bg-navy2">
-                        {z.name}
-                      </option>
-                    ))}
+                    <ZoneOptions zones={zones} />
                   </select>
                 </div>
                 <div className="mb-4">
@@ -449,11 +446,7 @@ export default function Products() {
                     className="field-dark"
                   >
                     <option value="">Select your area</option>
-                    {zones.map((z) => (
-                      <option key={z.id} value={z.id} className="bg-navy2">
-                        {z.name}
-                      </option>
-                    ))}
+                    <ZoneOptions zones={zones} />
                   </select>
                 </div>
                 <div className="mb-4">
