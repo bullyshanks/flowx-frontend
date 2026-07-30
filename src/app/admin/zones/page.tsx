@@ -7,7 +7,7 @@ import { adminApi, AdminZone } from '@/lib/admin-services';
 import {
   PageHeader, Table, Th, Td, Button, EmptyState,
 } from '@/components/admin/ui';
-import { formatDate } from '@/lib/utils';
+
 
 export default function AdminZonesPage() {
   const [zones, setZones] = useState<AdminZone[]>([]);
@@ -121,11 +121,13 @@ export default function AdminZonesPage() {
             <tr>
               <Th>Name</Th>
               <Th>City</Th>
-              <Th>Users</Th>
+              <Th>Coverage</Th>
+              <Th>Vendors</Th>
+              <Th>Riders</Th>
+              <Th>Turned away (30d)</Th>
               <Th>Orders</Th>
               <Th>Subscriptions</Th>
               <Th>Status</Th>
-              <Th>Created</Th>
               <Th>Actions</Th>
             </tr>
           </thead>
@@ -134,7 +136,35 @@ export default function AdminZonesPage() {
               <tr key={z.id} className="hover:bg-white/[0.02]">
                 <Td className="font-semibold text-white">{z.name}</Td>
                 <Td className="text-white/65 text-xs">{z.city}</Td>
-                <Td className="text-white/65 text-xs">{z._count.users}</Td>
+                <Td>
+                  <span
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+                      z.isServiceable
+                        ? 'bg-flowgreen/15 text-flowgreen border-flowgreen/30'
+                        : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                    }`}
+                  >
+                    {z.isServiceable ? 'Covered' : 'No vendor'}
+                  </span>
+                </Td>
+                <Td className={z.activeVendors === 0 ? 'text-amber-300 text-xs font-bold' : 'text-white/65 text-xs'}>
+                  {z.activeVendors}
+                </Td>
+                <Td className="text-white/65 text-xs">{z.activeRiders}</Td>
+                {/* Customers who tried to order here and were told no. In an
+                    uncovered zone this is the recruiting priority: high demand
+                    with no vendor is revenue sitting on the floor. */}
+                <Td
+                  className={
+                    !z.isServiceable && z.demandLast30d > 0
+                      ? 'text-amber-300 text-xs font-bold'
+                      : 'text-white/45 text-xs'
+                  }
+                >
+                  <span title="Checkouts refused in this zone in the last 30 days, for want of a vendor">
+                    {z.demandLast30d || '—'}
+                  </span>
+                </Td>
                 <Td className="text-white/65 text-xs">{z._count.orders}</Td>
                 <Td className="text-white/65 text-xs">{z._count.subscriptions}</Td>
                 <Td>
@@ -148,7 +178,6 @@ export default function AdminZonesPage() {
                     {z.isActive ? 'Active' : 'Inactive'}
                   </span>
                 </Td>
-                <Td className="text-white/55 text-xs">{formatDate(z.createdAt)}</Td>
                 <Td>
                   <Button
                     size="sm"

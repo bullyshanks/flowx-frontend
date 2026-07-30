@@ -10,18 +10,48 @@ import { authApi, productsApi } from '@/lib/services';
 import { validatePhone } from '@/lib/utils';
 import type { Zone } from '@/types';
 
+// Every claim here has to match what the system actually does — a vendor who
+// signs up on a promise we don't keep churns immediately, and the earlier copy
+// had three: it promised an SMS (no gateway is configured), called the wallet
+// "coming soon" (it shipped), and never mentioned KYC (which gates going live).
 const STEPS = [
-  { n: 1, title: 'Register & Select Your Zone', desc: 'Sign up with your name, phone, CNIC, and select your delivery area.' },
-  { n: 2, title: 'Admin Approval', desc: 'Our admin team reviews and approves your account. SMS notification once activated.' },
-  { n: 3, title: 'Receive Auto-Assigned Orders', desc: 'All customer orders from your zone are automatically routed to your dashboard.' },
-  { n: 4, title: 'Deliver & Earn', desc: 'Accept orders, mark them delivered, and track your earnings.' },
+  {
+    n: 1,
+    title: 'Register & Pick Your Area',
+    desc: 'Name, phone, CNIC and the area you can deliver in. Takes two minutes. Areas with no vendor yet are open — you would be the first there.',
+  },
+  {
+    n: 2,
+    title: 'Verification',
+    desc: 'Upload your CNIC (front and back) and a selfie. Both admin approval and KYC must clear before you can take orders — usually within 24 hours.',
+  },
+  {
+    n: 3,
+    title: 'Orders Come to You',
+    desc: 'Every order placed in your area is offered straight to you. You have 90 seconds to accept before it passes to another vendor, so keep the app open during your hours.',
+  },
+  {
+    n: 4,
+    title: 'Deliver & Get Settled',
+    desc: 'Mark the order delivered and the product value lands in your wallet, less FlowX commission. Cash you collect on COD orders is tracked against your account and settled with FlowX.',
+  },
 ];
 
 const FEATURES = [
-  { icon: MapPin, text: 'Orders auto-assigned by your zone — no manual searching' },
-  { icon: BarChart3, text: 'Dashboard to view, accept and manage all deliveries' },
-  { icon: Lock, text: 'Role-based access — you only see your zone\'s orders' },
-  { icon: Wallet, text: 'Earnings tracking & wallet system (coming soon)' },
+  { icon: MapPin, text: 'Orders auto-assigned by area — no bidding, no searching' },
+  { icon: BarChart3, text: 'Open and closed switches — stop receiving offers whenever you need to' },
+  { icon: Lock, text: 'You only ever see your own area\'s orders, and customer details only after you accept' },
+  { icon: Wallet, text: 'Live wallet: every order, commission and settlement itemised' },
+];
+
+// Sourced from the commission logic in ledger.service — vendors are credited
+// the product value and debited a commission, 20% unless admin has changed the
+// global default or set a per-product rate.
+const TERMS = [
+  { label: 'You keep', value: '80%', note: 'of product value; FlowX commission is 20% by default' },
+  { label: 'Delivery fee', value: 'Rs. 0', note: 'free delivery is FlowX\'s offer, not deducted from you' },
+  { label: 'Accept window', value: '90 sec', note: 'before an order is offered to the next vendor' },
+  { label: 'Cost to join', value: 'Free', note: 'no signup fee, no monthly charge' },
 ];
 
 export default function VendorPage() {
@@ -81,8 +111,24 @@ export default function VendorPage() {
               <span className="text-electric">Flow<span className="x-green">X</span></span>
             </h2>
             <p className="text-slate-500 text-base leading-[1.7] max-w-[560px] mb-8">
-              Join our growing network of delivery partners. Get auto-assigned orders in your zone and earn per delivery.
+              You already have the water and the customers nearby. FlowX brings you
+              the orders — placed, tracked and settled — so you deliver instead of
+              chasing calls. Most of Karachi has no FlowX vendor yet; the area you
+              pick could be yours alone.
             </p>
+
+            {/* The numbers a supplier actually decides on. Vague copy gets a
+                shrug; "you keep 80%, it costs nothing to join" gets a call. */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+              {TERMS.map((t) => (
+                <div key={t.label} className="bg-white rounded-2xl border border-light p-4">
+                  <div className="text-[11px] uppercase tracking-wide text-slate-400">{t.label}</div>
+                  <div className="font-syne font-extrabold text-navy text-xl mt-0.5">{t.value}</div>
+                  <div className="text-[11px] text-slate-500 leading-snug mt-1">{t.note}</div>
+                </div>
+              ))}
+            </div>
+
             <div className="flex flex-col gap-4">
               {STEPS.map((s) => (
                 <div

@@ -197,6 +197,12 @@ interface AdminZone {
   createdAt: string;
   updatedAt: string;
   _count: { users: number; orders: number; subscriptions: number };
+  /** Approved, KYC'd, unfrozen vendors — the same test checkout uses. */
+  activeVendors: number;
+  activeRiders: number;
+  isServiceable: boolean;
+  /** Checkouts turned away here in the last 30 days, for want of a vendor. */
+  demandLast30d: number;
 }
 
 // ═══ Finance (admin) ═══
