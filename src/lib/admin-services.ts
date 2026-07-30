@@ -12,7 +12,7 @@ interface AdminStats {
     vendors: number; pendingVendors: number;
     riders: number; pendingRiders: number;
   };
-  orders: { today: number; month: number; pending: number };
+  orders: { today: number; month: number; pending: number; stranded: number };
   subscriptions: { active: number };
   revenue: { total: number; month: number };
   finance: {

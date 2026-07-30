@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import {
   Users, Truck, Clock, Package, ShoppingBag, Repeat, DollarSign, TrendingUp, Loader2, Bike,
+  AlertTriangle,
 } from 'lucide-react';
+import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { adminApi, AdminStats } from '@/lib/admin-services';
 import { StatCard, PageHeader, Table, Th, Td, StatusBadge, statusToBadge } from '@/components/admin/ui';
@@ -37,6 +39,31 @@ export default function AdminDashboardPage() {
   return (
     <>
       <PageHeader title="Dashboard" subtitle="Overview of your FlowX operations" />
+
+      {/* ── Stranded orders ──
+          Orders with no vendor and no live offer. The backend keeps retrying
+          them every minute, so a number that persists here means no vendor in
+          that zone is open — which needs a phone call, not another retry. */}
+      {stats.orders.stranded > 0 && (
+        <div className="mb-8 flex items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5">
+          <AlertTriangle className="mt-0.5 flex-shrink-0 text-amber-400" size={20} />
+          <div className="min-w-0">
+            <div className="font-syne font-bold text-amber-300">
+              {stats.orders.stranded} order{stats.orders.stranded === 1 ? '' : 's'} waiting for a vendor
+            </div>
+            <p className="mt-1 text-sm text-white/70">
+              No vendor in their zone is currently open and in stock. We keep retrying automatically,
+              but these will not move until someone opens up — check vendor availability for those zones.
+            </p>
+            <Link
+              href="/admin/orders?status=PENDING"
+              className="mt-2 inline-block text-sm font-semibold text-amber-300 hover:underline"
+            >
+              View orders →
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* ── Top stats ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
