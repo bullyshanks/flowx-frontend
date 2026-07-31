@@ -226,6 +226,8 @@ interface UnsettledBalance {
 interface CommissionSettings {
   id: string;
   defaultCommissionPct: string;
+  /** Paid per referred vendor, once that vendor completes their first delivery. */
+  vendorReferralReward: string;
   updatedAt: string;
 }
 
@@ -312,8 +314,11 @@ export const financeApi = {
     const { data } = await api.get('/admin/finance/commission-settings');
     return data.settings;
   },
-  updateCommissionSettings: async (defaultCommissionPct: number): Promise<CommissionSettings> => {
-    const { data } = await api.patch('/admin/finance/commission-settings', { defaultCommissionPct });
+  // Both fields are optional server-side, so either can be saved on its own.
+  updateCommissionSettings: async (
+    fields: { defaultCommissionPct?: number; vendorReferralReward?: number },
+  ): Promise<CommissionSettings> => {
+    const { data } = await api.patch('/admin/finance/commission-settings', fields);
     return data.settings;
   },
   updateProductRates: async (productId: string, rates: { commissionPct?: number | null; riderEarningPerUnit?: number }) => {

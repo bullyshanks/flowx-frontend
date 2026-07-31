@@ -1713,13 +1713,19 @@ function RefundsTab() {
 // ═══ Settings ═══
 function SettingsTab() {
   const [pct, setPct] = useState('');
+  const [reward, setReward] = useState('');
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingReward, setSavingReward] = useState(false);
 
   useEffect(() => {
     financeApi.getCommissionSettings()
-      .then((s) => { setPct(String(Number(s.defaultCommissionPct))); setUpdatedAt(s.updatedAt); })
+      .then((s) => {
+        setPct(String(Number(s.defaultCommissionPct)));
+        setReward(String(Number(s.vendorReferralReward)));
+        setUpdatedAt(s.updatedAt);
+      })
       .catch(() => toast.error('Failed to load settings'))
       .finally(() => setLoading(false));
   }, []);
@@ -1732,13 +1738,31 @@ function SettingsTab() {
     }
     setSaving(true);
     try {
-      const s = await financeApi.updateCommissionSettings(value);
+      const s = await financeApi.updateCommissionSettings({ defaultCommissionPct: value });
       setUpdatedAt(s.updatedAt);
       toast.success(`Default commission set to ${value}%`);
     } catch {
       toast.error('Failed to update');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveReward = async () => {
+    const value = Number(reward);
+    if (isNaN(value) || value < 0 || value > 100000) {
+      toast.error('Referral reward must be between 0 and 100,000');
+      return;
+    }
+    setSavingReward(true);
+    try {
+      const s = await financeApi.updateCommissionSettings({ vendorReferralReward: value });
+      setUpdatedAt(s.updatedAt);
+      toast.success(`Vendor referral reward set to Rs. ${value}`);
+    } catch {
+      toast.error('Failed to update');
+    } finally {
+      setSavingReward(false);
     }
   };
 
@@ -1782,6 +1806,41 @@ function SettingsTab() {
         {updatedAt && (
           <div className="text-xs text-white/55 mt-4">Last updated {formatDateOnly(updatedAt)}</div>
         )}
+      </div>
+
+      {/* ── Vendor referral reward ── */}
+      <div className="bg-navy border border-white/[0.08] rounded-2xl p-6 mt-6">
+        <h2 className="font-syne font-bold text-white text-lg mb-1">Vendor Referral Reward</h2>
+        <p className="text-white/65 text-sm mb-5">
+          Paid to whoever brings a new vendor onto FlowX, once that vendor completes their
+          first delivery — not at signup. Vendors see this figure in their portal.
+          Changing it only affects new referrals; anyone already referred keeps the amount
+          they were promised.
+        </p>
+
+        <div className="flex items-end gap-3">
+          <div>
+            <label htmlFor="referral-reward" className="block text-[11px] text-white/60 uppercase tracking-wide mb-1.5">
+              Reward per vendor
+            </label>
+            <div className="flex items-center gap-2">
+              <span className="text-white/50 text-lg font-bold">Rs.</span>
+              <input
+                id="referral-reward"
+                type="number"
+                min={0}
+                max={100000}
+                step={50}
+                value={reward}
+                onChange={(e) => setReward(e.target.value)}
+                className="w-32 bg-white/10 border border-white/15 rounded-lg text-white text-lg font-bold px-3 py-2.5 focus:border-electric focus:ring-2 focus:ring-cyan2/40 outline-none"
+              />
+            </div>
+          </div>
+          <Button variant="primary" disabled={savingReward} onClick={saveReward}>
+            {savingReward ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />} Save
+          </Button>
+        </div>
       </div>
     </div>
   );
