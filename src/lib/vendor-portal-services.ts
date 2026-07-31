@@ -46,11 +46,32 @@ interface Settlement {
   createdAt: string;
 }
 
+export interface VendorReferralInfo {
+  referralCode: string;
+  rewardPerVendor: number;
+  signedUp: number;
+  credited: number;
+  totalEarned: number;
+  referrals: Array<{
+    name: string;
+    zone: string | null;
+    status: 'PENDING' | 'CREDITED';
+    bonus: number;
+    createdAt: string;
+    creditedAt: string | null;
+  }>;
+}
+
 export const vendorPortalApi = {
   // Dashboard stats
   dashboard: async (): Promise<VendorStats> => {
     const { data } = await api.get('/vendors/dashboard');
     return data.stats;
+  },
+
+  referral: async (): Promise<VendorReferralInfo> => {
+    const { data } = await api.get('/vendors/referral');
+    return data;
   },
 
   // Order queue (assigned to me + available in my zone)

@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import Navbar from '@/components/Navbar';
 import { Footer } from '@/components/CTAFooter';
 import { authApi, productsApi } from '@/lib/services';
+import { REFERRAL_STORAGE_KEY } from '@/components/ReferralCapture';
 import { validatePhone } from '@/lib/utils';
 import type { Zone } from '@/types';
 
@@ -63,11 +64,15 @@ export default function VendorPage() {
   const [password, setPassword] = useState('');
   const [zoneId, setZoneId] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [referralCode, setReferralCode] = useState('');
 
   useEffect(() => {
     productsApi.getZones().then(setZones).catch(() => {
       toast.error('Failed to load zones');
     });
+    // ReferralCapture (root layout) stashes ?ref= from any page, so a vendor
+    // who arrived via a colleague's link still carries it here after browsing.
+    setReferralCode(localStorage.getItem(REFERRAL_STORAGE_KEY) || '');
   }, []);
 
   const submit = async (e: React.FormEvent) => {
@@ -86,7 +91,13 @@ export default function VendorPage() {
     }
     setSubmitting(true);
     try {
-      await authApi.registerVendor({ name, phone, password, cnic, zoneId });
+      await authApi.registerVendor({
+        name, phone, password, cnic, zoneId,
+        ...(referralCode && { referralCode }),
+      });
+      // Consumed — a stale code must not attach itself to the next signup on
+      // this device.
+      if (referralCode) localStorage.removeItem(REFERRAL_STORAGE_KEY);
       toast.success('Application submitted! Admin will review within 24 hours.');
       setTimeout(() => router.push('/login'), 2000);
     } catch (err: unknown) {
@@ -155,6 +166,19 @@ export default function VendorPage() {
             <div className="text-white/50 text-sm mb-7">
               Join Flow<span className="x-green">X</span> as a delivery partner
             </div>
+
+            {/* Confirms the invite actually registered. Without this a referred
+                vendor has no way to know their colleague gets credited, and the
+                referrer has no way to reassure them. */}
+            {referralCode && (
+              <div className="mb-6 rounded-xl border border-flowgreen/30 bg-flowgreen/10 px-4 py-3">
+                <div className="text-flowgreen text-sm font-bold">You were invited to FlowX</div>
+                <div className="text-white/60 text-xs mt-0.5">
+                  Invite code <span className="font-mono text-white/80">{referralCode}</span> — whoever
+                  invited you is credited once you complete your first delivery.
+                </div>
+              </div>
+            )}
 
             {[
               { label: 'Full Name', val: name, set: setName, type: 'text', placeholder: 'Muhammad Ali' },

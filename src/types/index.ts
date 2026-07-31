@@ -182,6 +182,8 @@ export interface VendorRegisterInput {
   password: string;
   cnic?: string;
   zoneId: string;
+  /** Code of the vendor or customer who introduced them, from a ?ref= link. */
+  referralCode?: string;
 }
 
 export interface RiderRegisterInput {

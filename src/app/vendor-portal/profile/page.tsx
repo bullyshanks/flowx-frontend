@@ -10,6 +10,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { authApi } from '@/lib/services';
 import { vendorPortalApi, VendorStats } from '@/lib/vendor-portal-services';
 import { PageHeader, StatCard } from '@/components/admin/ui';
+import VendorReferralCard from '@/components/VendorReferralCard';
 import { formatDate } from '@/lib/utils';
 import type { User as UserType } from '@/types';
 
@@ -48,6 +49,8 @@ export default function VendorProfilePage() {
   return (
     <>
       <PageHeader title="My Profile" subtitle="Your vendor account" />
+
+      <VendorReferralCard />
 
       {/* ── Profile card ── */}
       <div className="bg-navy border border-white/[0.08] rounded-2xl overflow-hidden mb-6">
@@ -97,7 +100,9 @@ export default function VendorProfilePage() {
             <StatCard label="Today" value={stats.todayOrders} icon={Calendar} color="blue" />
             <StatCard label="In Progress" value={stats.pendingOrders} icon={MapPin} color="amber" />
             <StatCard label="Completed" value={stats.completedOrders} icon={CheckCircle2} color="green" />
-            <StatCard label="Total Delivered" value={stats.totalAssigned} icon={User} color="cyan" />
+            {/* totalAssigned counts every order ever assigned, at any status — same
+                mislabel that was fixed on the dashboard. */}
+            <StatCard label="Total Orders" value={stats.totalAssigned} icon={User} color="cyan" />
           </div>
         </div>
       )}

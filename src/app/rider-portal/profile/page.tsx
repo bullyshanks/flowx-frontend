@@ -105,7 +105,9 @@ export default function RiderProfilePage() {
             <StatCard label="Today" value={stats.todayOrders} icon={Calendar} color="blue" />
             <StatCard label="In Progress" value={stats.pendingOrders} icon={MapPin} color="amber" />
             <StatCard label="Completed" value={stats.completedOrders} icon={CheckCircle2} color="green" />
-            <StatCard label="Total Delivered" value={stats.totalAssigned} icon={Bike} color="cyan" />
+            {/* Every order ever assigned, not deliveries — overstating this to
+                someone paid per delivery is the worst place to get it wrong. */}
+            <StatCard label="Total Orders" value={stats.totalAssigned} icon={Bike} color="cyan" />
           </div>
         </div>
       )}
