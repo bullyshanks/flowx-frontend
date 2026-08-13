@@ -1,5 +1,35 @@
 const { withSentryConfig } = require('@sentry/nextjs');
 
+// No security headers were set here at all — no CSP, no X-Frame-Options,
+// nothing. The JWT lives in localStorage (api.ts), so without a CSP any
+// future script-injection sink would be a straight path to reading it, with
+// no second layer of defense. script-src/style-src need 'unsafe-inline'
+// because Next 14's App Router ships inline hydration data and this repo
+// isn't wired for per-request nonces — still meaningfully tighter than no
+// policy, since it blocks loading a *script* from an untrusted origin.
+// connect-src is left permissive on https: because the backend origin
+// varies by environment (Railway/Azure) and isn't known at build time.
+const securityHeaders = [
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+  {
+    key: 'Content-Security-Policy',
+    value: [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: https:",
+      "font-src 'self' data:",
+      "connect-src 'self' https:",
+      "frame-ancestors 'none'",
+      "object-src 'none'",
+      "base-uri 'self'",
+    ].join('; '),
+  },
+];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -10,6 +40,9 @@ const nextConfig = {
     // Next 14 only runs instrumentation.ts behind this flag (it became the
     // default in Next 15). Without it, server-side Sentry never initialises.
     instrumentationHook: true,
+  },
+  async headers() {
+    return [{ source: '/:path*', headers: securityHeaders }];
   },
 };
 

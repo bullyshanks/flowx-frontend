@@ -38,33 +38,44 @@ export default function TrackPage() {
 function TrackPageInner() {
   const searchParams = useSearchParams();
   const [orderNumber, setOrderNumber] = useState('');
+  const [phoneLast4, setPhoneLast4] = useState('');
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const track = async (numberOverride?: string) => {
+  const track = async (numberOverride?: string, phoneOverride?: string) => {
     const target = (numberOverride ?? orderNumber).trim();
+    const phone = (phoneOverride ?? phoneLast4).trim();
     if (!target) {
       toast.error('Please enter your order ID');
       return;
     }
+    if (!/^\d{4}$/.test(phone)) {
+      toast.error('Enter the last 4 digits of the phone number used on the order');
+      return;
+    }
     setLoading(true);
     try {
-      const o = await ordersApi.track(target);
+      const o = await ordersApi.track(target, phone);
       setOrder(o);
     } catch {
-      toast.error('Order not found. Please check your order ID.');
+      toast.error('Order not found. Please check your order ID and phone digits.');
       setOrder(null);
     } finally {
       setLoading(false);
     }
   };
 
-  // Deep link support: /track?order=<orderNumber> (e.g. from the account order history list)
+  // Deep link support: /track?order=<orderNumber>&phone=<last4> (e.g. from the
+  // account order history list, which knows the customer's own phone already)
   useEffect(() => {
     const fromQuery = searchParams.get('order');
-    if (fromQuery) {
+    const phoneFromQuery = searchParams.get('phone');
+    if (fromQuery && phoneFromQuery) {
       setOrderNumber(fromQuery);
-      track(fromQuery);
+      setPhoneLast4(phoneFromQuery);
+      track(fromQuery, phoneFromQuery);
+    } else if (fromQuery) {
+      setOrderNumber(fromQuery);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -88,7 +99,7 @@ function TrackPageInner() {
           </p>
 
           <div className="bg-white/[0.06] border border-white/10 rounded-3xl p-9 backdrop-blur-2xl">
-            <div className="flex gap-3 mb-6">
+            <div className="flex flex-col sm:flex-row gap-3 mb-2">
               <input
                 type="text"
                 placeholder="Enter your Order ID (e.g., FLW-2026-12345)"
@@ -96,6 +107,16 @@ function TrackPageInner() {
                 onChange={(e) => setOrderNumber(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && track()}
                 className="flex-1 px-5 py-4 bg-white/8 border border-white/15 rounded-2xl text-white outline-none focus:border-cyan2"
+              />
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={4}
+                placeholder="Last 4 digits of phone"
+                value={phoneLast4}
+                onChange={(e) => setPhoneLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                onKeyDown={(e) => e.key === 'Enter' && track()}
+                className="sm:w-48 px-5 py-4 bg-white/8 border border-white/15 rounded-2xl text-white outline-none focus:border-cyan2 tracking-widest"
               />
               <button
                 onClick={() => track()}
@@ -106,6 +127,9 @@ function TrackPageInner() {
                 Track
               </button>
             </div>
+            <p className="text-white/40 text-xs mb-6 text-left">
+              For your privacy, we also need the last 4 digits of the phone number used to place the order.
+            </p>
 
             {order ? (
               <div className={`rounded-2xl p-6 text-left ${

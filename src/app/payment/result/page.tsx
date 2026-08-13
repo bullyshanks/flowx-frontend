@@ -14,6 +14,7 @@ import Navbar from '@/components/Navbar';
 import { Footer } from '@/components/CTAFooter';
 import { paymentsApi, recallGuestPayment, forgetGuestPayment, type PaymentStatus } from '@/lib/services';
 import { formatPrice } from '@/lib/utils';
+import { useAuthStore } from '@/lib/auth-store';
 
 // A gateway callback can land a moment after the customer does, so a PENDING
 // first read is normal rather than a failure. Poll briefly before saying so.
@@ -21,12 +22,14 @@ const POLL_INTERVAL_MS = 2000;
 const MAX_POLLS = 5;
 
 export default function PaymentResultPage() {
+  const authUser = useAuthStore((s) => s.user);
   const [orderNumber, setOrderNumber] = useState('');
   const [result, setResult] = useState<PaymentStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [polls, setPolls] = useState(0);
   const [cancelled, setCancelled] = useState(false);
+  const [phoneLast4, setPhoneLast4] = useState('');
 
   const load = useCallback(async (order: string, guestPhone?: string) => {
     try {
@@ -64,8 +67,13 @@ export default function PaymentResultPage() {
     }
     // Logged-in customers are identified by their JWT. Guests fall back to the
     // phone stashed at checkout, since the gateway returns them here with no
-    // credentials of any kind.
-    load(order, recallGuestPayment(order));
+    // credentials of any kind. Grabbed before load() can forget it, and kept
+    // in state (not re-read from storage) for the "Track order" link below.
+    const guestPhone = recallGuestPayment(order);
+    const knownPhone = guestPhone || authUser?.phone;
+    if (knownPhone) setPhoneLast4(knownPhone.slice(-4));
+    load(order, guestPhone);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load]);
 
   // Keep checking only while the answer could still change.
@@ -121,7 +129,7 @@ export default function PaymentResultPage() {
                   <span className="text-white font-semibold">{result?.orderNumber}</span>. Your water is on its way.
                 </p>
                 <div className="flex gap-2 justify-center">
-                  <Link href={`/track?order=${result?.orderNumber}`} className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-br from-electric to-flowgreen text-white text-sm font-bold hover:-translate-y-0.5 transition">
+                  <Link href={`/track?order=${result?.orderNumber}${phoneLast4 ? `&phone=${phoneLast4}` : ''}`} className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-br from-electric to-flowgreen text-white text-sm font-bold hover:-translate-y-0.5 transition">
                     Track order <ArrowRight size={15} />
                   </Link>
                   <Link href="/" className="px-5 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white text-sm font-semibold transition">

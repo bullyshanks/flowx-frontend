@@ -101,7 +101,7 @@ export default function AccountOrdersPage() {
               {orders.map((o) => (
                 <Link
                   key={o.id}
-                  href={`/track?order=${encodeURIComponent(o.orderNumber)}`}
+                  href={`/track?order=${encodeURIComponent(o.orderNumber)}${user?.phone ? `&phone=${user.phone.slice(-4)}` : ''}`}
                   className="bg-white rounded-2xl border border-light p-5 no-underline hover:border-electric/40 transition block"
                 >
                   <div className="flex items-start justify-between gap-4 mb-3">

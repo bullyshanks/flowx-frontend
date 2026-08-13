@@ -32,8 +32,8 @@ export const ordersApi = {
     const { data } = await api.post('/orders', input);
     return data.order;
   },
-  track: async (orderNumber: string): Promise<Order> => {
-    const { data } = await api.get(`/orders/track/${orderNumber}`);
+  track: async (orderNumber: string, phoneLast4: string): Promise<Order> => {
+    const { data } = await api.get(`/orders/track/${orderNumber}`, { params: { phoneLast4 } });
     return data.order;
   },
   myOrders: async (): Promise<Order[]> => {
