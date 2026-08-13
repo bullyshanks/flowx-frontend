@@ -8,7 +8,7 @@ Water delivery platform web app for FlowX (Karachi, Pakistan). Brand: "Flow**X**
 - Zustand (cart + auth state, persisted to localStorage)
 - Axios (API client with JWT interceptor)
 - react-hot-toast, lucide-react
-- Deployed on **Vercel** (auto-deploys on every `git push` to main)
+- Deployed on **Azure App Service** (Vercel and Railway were decommissioned 2026-08-14 — do not reference them, both projects are deleted)
 
 ## Brand Colors (tailwind.config.ts)
 ```
@@ -19,30 +19,39 @@ cyan2       #29B6F6   bright accent
 soft        #F0F7FF   light bg
 ```
 
-## Folder Structure — 3 audiences in one app
+## Folder Structure — 4 audiences in one app
 ```
 src/app/
   page.tsx              Customer homepage (hero, features, products, testimonials, contact)
   cart/page.tsx          Multi-product cart + checkout (separate from quick-order)
-  track/page.tsx         Public order tracking by order number
-  login/page.tsx         OTP login (customers) + password login (vendors/admin), auto-redirects by role
+  track/page.tsx         Public order tracking — requires order number + last 4 digits of the order's phone (second factor against enumeration; deep-linkable via ?order=&phone=)
+  login/page.tsx         OTP login (customers, not ADMIN) + password login (vendors/riders/admin), auto-redirects by role
   vendor/page.tsx         PUBLIC vendor registration form
+  rider/page.tsx          PUBLIC rider registration form
+  account/                AUTH-PROTECTED customer account: profile/, orders/ (order history, links into /track with phone pre-filled)
   vendor-portal/          AUTH-PROTECTED vendor dashboard (mobile-first, bottom nav)
     layout.tsx, dashboard/, orders/, profile/
+  rider-portal/           AUTH-PROTECTED rider dashboard (mirrors vendor-portal)
+    layout.tsx, dashboard/, orders/, profile/
   admin/                  AUTH-PROTECTED admin panel (sidebar nav)
-    layout.tsx, dashboard/, orders/, vendors/, subscriptions/, products/, settings/
+    layout.tsx, dashboard/, orders/, vendors/, subscriptions/, products/, finance/, settings/
+  payment/result/page.tsx Gateway return page — polls payment status, never trusts the URL's ?status=
 src/components/
   Navbar, Hero, Features, HowItWorks, Products, Testimonials, Contact, CTAFooter, Logo, CornerPopup
+  ReferralCapture.tsx     Mounted once in root layout — stashes ?ref=<code> from any page into localStorage for the login page to pick up later
+  PushRegistrar.tsx       Mounted once in root layout — registers the service worker + Web Push subscription after login
   admin/ui.tsx            Shared primitives: StatCard, Table, StatusBadge, Button, EmptyState — used by BOTH /admin and /vendor-portal
 src/lib/
   api.ts                  Axios instance, attaches JWT from localStorage, clears on 401
-  services.ts             Customer-facing API calls (products, orders, auth, subscriptions)
+  services.ts             Customer-facing API calls (products, orders, auth, subscriptions, referral, push)
   admin-services.ts       Admin-only API calls
   vendor-portal-services.ts  Vendor-only API calls
   auth-store.ts           Zustand — user, token, setAuth(), logout()
   cart-store.ts           Zustand — items, addItem/removeItem/updateQuantity, subtotal(), count()
+  push.ts                 registerPush() — service worker registration + VAPID subscribe flow
   utils.ts                formatPrice, formatDate, validatePhone (PK phone regex)
 src/types/index.ts        TypeScript types mirroring backend Prisma models
+public/sw.js               Service worker — handles push + notificationclick events
 ```
 
 ## Auth & Routing Behavior
@@ -56,8 +65,9 @@ src/types/index.ts        TypeScript types mirroring backend Prisma models
 
 ## Environment Variables
 ```
-NEXT_PUBLIC_API_URL=https://flowx-backend-production.up.railway.app/api
+NEXT_PUBLIC_API_URL=https://app-flowx-api-sh42.azurewebsites.net/api
 NEXT_PUBLIC_WHATSAPP=923158374442
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=...   # matches flowx-backend's VAPID_PUBLIC_KEY, leave unset to disable push prompts
 ```
 
 ## Error Tracking (Sentry)
@@ -68,14 +78,22 @@ NEXT_PUBLIC_WHATSAPP=923158374442
 - `tunnelRoute: '/monitoring'` proxies events through our own domain so ad blockers don't eat error reports.
 - `sentry.client.config.ts` warns it's deprecated in favour of `instrumentation-client.ts` — that needs Next 15.3, so it stays until the Next upgrade.
 
-## Deployment (Vercel)
-- Connected to GitHub — every `git push` to main auto-deploys, no manual dashboard action needed.
-- Workflow: edit locally → `npm run dev` to test → `git add . && git commit -m "..." && git push`.
+## Deployment (Azure App Service)
+- **Live**: https://app-flowx-web-sh42.azurewebsites.net
+- Resource group `rg-flowx`, same Azure for Students subscription as the backend (`app-flowx-api-sh42`) — see the backend's CLAUDE.md for the shared infra notes (Key Vault, B1 plan, restart/rotation gotchas).
+- **No CI/CD is configured** — unlike the backend (`azure-deploy.yml` on push), this repo has no GitHub Actions workflow and `az webapp deployment source show` reports no source control connected. It was deployed via a one-time manual zip deploy. **`git push` alone does NOT update the live site.** To ship a change, build and redeploy explicitly, e.g.:
+  ```
+  npm run build
+  az webapp deploy -n app-flowx-web-sh42 -g rg-flowx --src-path <zip-of-build-output> --type zip
+  ```
+  (Confirm the exact deploy command/zip contents against whatever the original manual deploy used — check `az webapp log deployment list -n app-flowx-web-sh42 -g rg-flowx` for the last successful deployment's shape before assuming.) Wiring up a GitHub Actions workflow here, mirroring the backend's, would close this gap — flag to the team if this keeps causing confusion.
 
 ## Known Gotchas (already hit these — don't repeat)
-- Backend CORS requires the exact Vercel URL in its `FRONTEND_URL` env var (set on Railway side, not here) — if login/API calls fail with CORS errors in browser console, that's a backend-side fix, not frontend.
+- Backend CORS requires the exact deployed frontend origin in its `FRONTEND_URL` env var (set on the backend's Azure Key Vault/app settings, not here) — if login/API calls fail with CORS errors in browser console, that's a backend-side fix, not frontend. The backend now refuses to boot with a `'*'` CORS fallback in production, so this can't silently pass either.
 - Products/order forms must respect each product's `minQuantity` (e.g. 19L Dispenser min 3, Refill min 4) — both quick-order and cart quantity steppers enforce this.
 - No cart persistence bugs: `cart-store.ts` uses `createJSONStorage` with an SSR-safe no-op fallback — don't remove this or the app breaks on server render.
+- `/track` requires both the order number AND the last 4 digits of the order's phone — a plain order-number-only link will 400. Deep links from `account/orders` and `payment/result` pass the phone automatically when it's known (logged-in user's `user.phone`, or the guest phone stashed in localStorage at checkout via `rememberGuestPayment`).
+- ADMIN accounts cannot use OTP login — the login page's OTP flow will 403 for an admin phone number. Use the Password tab.
 
 ## Client Change History (context for future requests)
 - Brand X must always be green+italic (client-mandated, applies everywhere including admin/vendor portal).
