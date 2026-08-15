@@ -1,0 +1,74 @@
+name: Deploy Web to Azure
+
+on:
+  push:
+    branches: [claude/azure-web-app-deployment-da5789]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      # NEXT_PUBLIC_* are inlined into the client bundle at build time, so they
+      # have to be set wherever the build runs. That is here now, not App
+      # Service app settings -- the cost of moving the build off the B1.
+      NEXT_PUBLIC_API_URL: https://app-flowx-api-sh42.azurewebsites.net/api
+      NEXT_PUBLIC_WHATSAPP: "923158374442"
+      NEXT_PUBLIC_BRAND_NAME: FlowX
+      # Public half of the VAPID pair only — safe to commit, it is shipped to
+      # every browser anyway. Must match the backend's VAPID_PUBLIC_KEY app
+      # setting or push subscriptions are rejected at send time. The private
+      # half lives in Key Vault (kv-flowx-sh42/VAPID-PRIVATE-KEY).
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: BErvdz3L4DH-r_HL9TPZnzwhRdo1pSCmBwTJQTo2vjE3qAyH0BodTaqHamwSI4lTaa6t0mKWldsatGQi6xv5hxw
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      # `output: standalone` deliberately excludes static assets and public/,
+      # since Next expects them served from disk. Copy them in before packaging
+      # or the site boots with no CSS and no images.
+      - name: Assemble standalone bundle
+        run: |
+          cp -r public .next/standalone/public
+          cp -r .next/static .next/standalone/.next/static
+
+      - name: Package
+        run: cd .next/standalone && zip -qr ../../web.zip .
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Ships a prebuilt bundle, so this is a file copy rather than a 10-minute
+      # in-place build. The app stays up instead of 503ing for the duration.
+      - uses: azure/webapps-deploy@v3
+        with:
+          app-name: app-flowx-web-sh42
+          package: web.zip
+
+      - name: Verify site responds
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" https://app-flowx-web-sh42.azurewebsites.net/ || true)
+            if [ "$code" = "200" ]; then echo "site healthy after ${i} attempt(s)"; exit 0; fi
+            echo "attempt $i: HTTP $code"; sleep 10
+          done
+          echo "::error::site never returned 200"; exit 1

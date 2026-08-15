@@ -79,14 +79,20 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY=...   # matches flowx-backend's VAPID_PUBLIC_KEY, l
 - `sentry.client.config.ts` warns it's deprecated in favour of `instrumentation-client.ts` — that needs Next 15.3, so it stays until the Next upgrade.
 
 ## Deployment (Azure App Service)
-- **Live**: https://app-flowx-web-sh42.azurewebsites.net
-- Resource group `rg-flowx`, same Azure for Students subscription as the backend (`app-flowx-api-sh42`) — see the backend's CLAUDE.md for the shared infra notes (Key Vault, B1 plan, restart/rotation gotchas).
-- **No CI/CD is configured** — unlike the backend (`azure-deploy.yml` on push), this repo has no GitHub Actions workflow and `az webapp deployment source show` reports no source control connected. It was deployed via a one-time manual zip deploy. **`git push` alone does NOT update the live site.** To ship a change, build and redeploy explicitly, e.g.:
-  ```
-  npm run build
-  az webapp deploy -n app-flowx-web-sh42 -g rg-flowx --src-path <zip-of-build-output> --type zip
-  ```
-  (Confirm the exact deploy command/zip contents against whatever the original manual deploy used — check `az webapp log deployment list -n app-flowx-web-sh42 -g rg-flowx` for the last successful deployment's shape before assuming.) Wiring up a GitHub Actions workflow here, mirroring the backend's, would close this gap — flag to the team if this keeps causing confusion.
+- **Live**: https://app-flowx-web-sh42.azurewebsites.net (API: `app-flowx-api-sh42`)
+- Resource group `rg-flowx`, same Azure for Students subscription as the backend — see the backend's CLAUDE.md for shared infra notes (Key Vault, B1 plan, restart/rotation gotchas).
+- **Deploy**: push to `claude/azure-web-app-deployment-da5789` → GitHub Actions (`.github/workflows/azure-deploy.yml`) builds and deploys, then polls the site for a 200. That branch is the deploy branch; **pushing to `main` does NOT deploy anything.**
+- Auth is OIDC federated credentials **pinned to that exact branch name**. Renaming the branch (e.g. to something tidier than the `claude/...` name) requires updating the Azure AD app's federated credential subject to match, or pushes silently stop deploying.
+
+### The build runs in CI, not on App Service
+`output: 'standalone'` in `next.config.js` plus a runner build is deliberate. Building in place on the B1 took the site down for the whole build (503) and wedged for 46 minutes under memory pressure — both apps share one 1-vCore plan. Don't set `SCM_DO_BUILD_DURING_DEPLOYMENT=true` on this app again.
+
+Consequence: `NEXT_PUBLIC_*` are inlined at build time, so they live in `.github/workflows/azure-deploy.yml`, **not** App Service app settings. Changing the API URL or the VAPID public key means editing the workflow and pushing.
+
+### Gotchas
+- Startup command is `node server.js` (standalone bundle), not `npm start`.
+- `standalone` excludes `public/` and `.next/static` by design — the workflow copies them in. Skip that and the site boots with no CSS.
+- A failed deploy leaves `wwwroot` half-written with no rollback (B1 has no deployment slots). Symptom: container exits 1, logs say `Could not find build manifest file`. Fix is to redeploy, not restart.
 
 ## Known Gotchas (already hit these — don't repeat)
 - Backend CORS requires the exact deployed frontend origin in its `FRONTEND_URL` env var (set on the backend's Azure Key Vault/app settings, not here) — if login/API calls fail with CORS errors in browser console, that's a backend-side fix, not frontend. The backend now refuses to boot with a `'*'` CORS fallback in production, so this can't silently pass either.

@@ -33,6 +33,11 @@ const securityHeaders = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Emit a self-contained server bundle (server.js plus only the node_modules
+  // it actually traces) so CI can build once and ship ~30 MB. Building in place
+  // on App Service instead took the site down for the whole build and timed out
+  // Kudu's deployment API.
+  output: 'standalone',
   images: {
     remotePatterns: [{ protocol: 'https', hostname: '**' }],
   },
