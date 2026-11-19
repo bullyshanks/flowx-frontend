@@ -38,6 +38,11 @@ jobs:
 
       - run: npm ci
 
+      # Fails fast with a readable list of type errors, before spending
+      # minutes on a full build.
+      - name: Type-check
+        run: npx tsc --noEmit
+
       - run: npm run build
 
       # `output: standalone` deliberately excludes static assets and public/,
@@ -47,6 +52,27 @@ jobs:
         run: |
           cp -r public .next/standalone/public
           cp -r .next/static .next/standalone/.next/static
+
+      # Boot the exact bundle we are about to ship and require a 200 from the
+      # homepage plus a CSS file. This catches a server that crashes on start or
+      # a missing static copy (the "site has no CSS" failure) before Azure
+      # login, so a bad build never overwrites the live site.
+      - name: Smoke-test the bundle locally
+        run: |
+          cd .next/standalone
+          PORT=3100 HOSTNAME=127.0.0.1 node server.js > ../../web.log 2>&1 &
+          pid=$!
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:3100/ -o /tmp/home.html; then break; fi
+            sleep 1
+          done
+          if [ ! -s /tmp/home.html ]; then echo "::error::bundle did not serve /"; cat ../../web.log; exit 1; fi
+          css=$(grep -o '/_next/static/css/[^"]*\.css' /tmp/home.html | head -1)
+          if [ -z "$css" ] || ! curl -sf "http://127.0.0.1:3100$css" -o /dev/null; then
+            echo "::error::homepage CSS missing from the bundle"; exit 1
+          fi
+          echo "bundle serves / and $css"
+          kill $pid
 
       - name: Package
         run: cd .next/standalone && zip -qr ../../web.zip .
